@@ -2,15 +2,35 @@
  * UniFlow Core — persistence layer.
  * All user data lives in localStorage on the student's own device.
  * Nothing here ever touches the network.
+ *
+ * Event identity (v0.1.1): event ids are SOURCE-SCOPED —
+ *   `${sourceId}:${uid}/${instanceKey}`
+ * Two calendars can safely contain the same UID (e.g. universities reuse
+ * uid@local) without overwriting each other's category/status marks.
+ * Legacy v0.1.0 ids (`uid/instanceKey`) are migrated on load.
  */
 
 import { DEFAULT_SETTINGS } from './types.js';
-import type { CalendarSource, EventMark, Settings, SourceChange } from './types.js';
+import type { CalendarSource, EventMark, Settings, SourceChange, VanishedEvent } from './types.js';
 
 const KEY_SOURCES = 'uniflow.sources.v1';
 const KEY_MARKS = 'uniflow.marks.v1';
 const KEY_SETTINGS = 'uniflow.settings.v1';
 const KEY_CHANGES = 'uniflow.changes.v1';
+const KEY_VANISHED = 'uniflow.vanished.v1';
+const KEY_ARCHIVED = 'uniflow.archived.v1';
+
+/** Build the stable, source-scoped id for an event instance. */
+export function scopedEventId(sourceId: string, uid: string, instanceKey: string): string {
+  return `${sourceId}:${uid}/${instanceKey}`;
+}
+
+/** Parse a scoped id into {sourceId, rest}. Legacy (v0.1.0) ids have no prefix. */
+export function parseScopedEventId(id: string): { sourceId: string | null; rest: string } {
+  const idx = id.indexOf(':');
+  if (idx <= 0) return { sourceId: null, rest: id };
+  return { sourceId: id.slice(0, idx), rest: id.slice(idx + 1) };
+}
 
 function readJSON<T>(key: string, fallback: T): T {
   try {
@@ -68,18 +88,108 @@ export function updateMark(
   return marks;
 }
 
-/** Marks for events that no longer exist anywhere are pruned on import/sync. */
-export function pruneMarks(marks: Record<string, EventMark>, liveEventIds: Set<string>): Record<string, EventMark> {
+/**
+ * Migrate legacy v0.1.0 mark keys (`uid/instance`) to source-scoped keys.
+ * A legacy key is mapped to EVERY source that currently contains that uid
+ * (the student's intent — category/status — applies to all of them), then
+ * the legacy key is removed. Unresolvable legacy keys are kept: we never
+ * destroy user data we cannot confidently map.
+ */
+export function migrateLegacyMarks(
+  marks: Record<string, EventMark>,
+  liveBySource: Map<string, Set<string>>, // sourceId -> set of `uid/instanceKey` rest-ids
+): Record<string, EventMark> {
   let changed = false;
   const next: Record<string, EventMark> = {};
   for (const [id, mark] of Object.entries(marks)) {
-    if (liveEventIds.has(id)) {
+    const { sourceId, rest } = parseScopedEventId(id);
+    if (sourceId !== null) {
+      next[id] = mark;
+      continue;
+    }
+    // legacy key — find sources that contain this event
+    let mapped = false;
+    for (const [srcId, restIds] of liveBySource) {
+      if (restIds.has(rest)) {
+        next[scopedEventId(srcId, rest.split('/')[0], rest.split('/')[1] ?? 'single')] = mark;
+        mapped = true;
+      }
+    }
+    if (mapped) changed = true;
+    else next[id] = mark; // keep unknown legacy data rather than deleting it
+  }
+  return changed ? next : marks;
+}
+
+/**
+ * Prune marks that belong to NOTHING live anymore.
+ * CRITICAL (P0-01): `liveEventIds` must be the union across ALL imported
+ * calendars — importing course B must never prune course A's marks.
+ * Marks preserved elsewhere (vanished snapshots / archived) are also kept.
+ */
+export function pruneMarks(
+  marks: Record<string, EventMark>,
+  liveEventIds: Set<string>,
+  preservedIds: Set<string> = new Set(),
+): Record<string, EventMark> {
+  let changed = false;
+  const next: Record<string, EventMark> = {};
+  for (const [id, mark] of Object.entries(marks)) {
+    if (liveEventIds.has(id) || preservedIds.has(id)) {
       next[id] = mark;
     } else {
       changed = true;
     }
   }
   return changed ? next : marks;
+}
+
+// ---------- vanished events (disappeared from a feed, pending confirmation) ----------
+
+export function loadVanished(): Record<string, VanishedEvent> {
+  return readJSON<Record<string, VanishedEvent>>(KEY_VANISHED, {});
+}
+
+export function saveVanished(vanished: Record<string, VanishedEvent>): void {
+  writeJSON(KEY_VANISHED, vanished);
+}
+
+export function loadArchived(): Record<string, VanishedEvent> {
+  return readJSON<Record<string, VanishedEvent>>(KEY_ARCHIVED, {});
+}
+
+export function saveArchived(archived: Record<string, VanishedEvent>): void {
+  writeJSON(KEY_ARCHIVED, archived);
+}
+
+/** Record a vanished event (keeps the student's mark). Returns false if already tracked. */
+export function addVanished(vanished: Record<string, VanishedEvent>, item: VanishedEvent): { changed: boolean; store: Record<string, VanishedEvent> } {
+  if (vanished[item.id]) return { changed: false, store: vanished };
+  const next = { ...vanished, [item.id]: item };
+  saveVanished(next);
+  return { changed: true, store: next };
+}
+
+/** Resolve a vanished event: archive it, mark it cancelled, or restore it. */
+export function resolveVanished(
+  vanished: Record<string, VanishedEvent>,
+  id: string,
+  resolution: 'archived' | 'cancelled' | 'restored',
+): { vanished: Record<string, VanishedEvent>; archived: Record<string, VanishedEvent> } {
+  const item = vanished[id];
+  if (!item) return { vanished, archived: loadArchived() };
+  const nextVanished = { ...vanished };
+  delete nextVanished[id];
+  const archived = loadArchived();
+  if (resolution === 'restored') {
+    // Back to the normal lists (will reappear if the source re-adds it); drop the snapshot.
+    saveVanished(nextVanished);
+    return { vanished: nextVanished, archived };
+  }
+  const nextArchived = { ...archived, [id]: { ...item, resolution } };
+  saveVanished(nextVanished);
+  saveArchived(nextArchived);
+  return { vanished: nextVanished, archived: nextArchived };
 }
 
 // ---------- settings ----------
@@ -109,12 +219,14 @@ export function exportAllData(): string {
   return JSON.stringify(
     {
       app: 'UniFlow Core',
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
       sources: loadSources(),
       marks: loadMarks(),
       settings: loadSettings(),
       changes: loadChanges(),
+      vanished: loadVanished(),
+      archived: loadArchived(),
     },
     null,
     2,
@@ -123,7 +235,7 @@ export function exportAllData(): string {
 
 /** Remove ALL UniFlow data from this device. Irreversible — the UI must confirm twice. */
 export function clearAllData(): void {
-  for (const key of [KEY_SOURCES, KEY_MARKS, KEY_SETTINGS, KEY_CHANGES]) {
+  for (const key of [KEY_SOURCES, KEY_MARKS, KEY_SETTINGS, KEY_CHANGES, KEY_VANISHED, KEY_ARCHIVED]) {
     localStorage.removeItem(key);
   }
 }
@@ -135,8 +247,6 @@ export function downloadFile(filename: string, content: string, mime = 'applicat
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
-  document.body.appendChild(a);
   a.click();
-  a.remove();
   URL.revokeObjectURL(url);
 }

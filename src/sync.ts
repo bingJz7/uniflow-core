@@ -21,6 +21,11 @@ export interface DiffResult {
   added: CalEvent[];
   /** Events in the old snapshot that vanished from the feed (kept, flagged). */
   removed: CalEvent[];
+  /**
+   * Matched pairs whose start time moved. Callers use these to migrate
+   * per-instance marks (category/status) to the new instance key.
+   */
+  timeMoved: Array<{ from: CalEvent; to: CalEvent }>;
 }
 
 interface InstancePair {
@@ -46,6 +51,7 @@ export function diffSnapshots(oldEvents: CalEvent[], newEvents: CalEvent[], nowI
   const changes: SourceChange[] = [];
   const added: CalEvent[] = [];
   const removed: CalEvent[] = [];
+  const timeMoved: Array<{ from: CalEvent; to: CalEvent }> = [];
 
   const uids = new Set([...oldByUid.keys(), ...newByUid.keys()]);
   for (const uid of uids) {
@@ -79,6 +85,7 @@ export function diffSnapshots(oldEvents: CalEvent[], newEvents: CalEvent[], nowI
         });
       } else if (prev && next) {
         if (prev.startMs !== next.startMs || prev.endMs !== next.endMs) {
+          timeMoved.push({ from: prev, to: next });
           changes.push({
             kind: 'time-changed',
             uid,
@@ -99,5 +106,5 @@ export function diffSnapshots(oldEvents: CalEvent[], newEvents: CalEvent[], nowI
     }
   }
 
-  return { changes, added, removed };
+  return { changes, added, removed, timeMoved };
 }

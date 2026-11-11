@@ -67,6 +67,26 @@ export interface SourceChange {
   detectedAt: string;
 }
 
+/**
+ * An event that disappeared from its source calendar on re-import.
+ * The full snapshot (and the student's marks) are preserved and shown as
+ * "vanished from source — needs your confirmation". Disappearing from a feed
+ * is NOT treated as the school cancelling the assignment, and never silently
+ * deletes the student's data.
+ */
+export interface VanishedEvent {
+  /** Source-scoped event id (see storage.eventId). */
+  id: string;
+  sourceId: string;
+  sourceName: string;
+  event: CalEvent;
+  /** The student's marks at the moment of disappearance. */
+  mark: EventMark;
+  detectedAt: string;
+  /** How the student resolved it: 'archived' = hidden as resolved, 'cancelled' = marked cancelled. */
+  resolution?: 'archived' | 'cancelled' | 'restored';
+}
+
 export interface Settings {
   /** IANA timezone the student lives in, e.g. "Australia/Adelaide". */
   timezone: string;

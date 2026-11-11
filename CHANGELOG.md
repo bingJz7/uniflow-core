@@ -2,6 +2,22 @@
 
 All notable changes to UniFlow Core are documented here. Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows [SemVer](https://semver.org/).
 
+## [0.1.1] — Code review remediation (unreleased)
+
+### Fixed
+- **P0-01 Multi-calendar state loss:** task categories/completion status are now scoped per calendar source (`sourceId:eventId`); importing or re-syncing one course can no longer erase another course's marks. `pruneMarks` now considers all imported sources and never removes user state without confirmation.
+- **P0-02 Vanished events:** when an event disappears from its calendar feed on re-import, a full snapshot plus the user's category/status is kept and surfaced in Changes as "vanished — awaiting your confirmation" (source disappearance / official cancellation / user deletion are distinct actions). Items are only resolved by explicit user action (keep visible / mark cancelled / archive).
+- **P0-03 Source-scoped IDs:** stable `sourceId:eventId` identifiers prevent same-UID collisions across different calendars; legacy `uid|time` marks are migrated automatically so existing user state survives the upgrade.
+- **RECURRENCE-ID timezone matching:** overrides for recurring events now match the correct occurrence regardless of TZID/floating-time feed quirks (previously overrides could silently fail on feeds without VTIMEZONE).
+- **Deployment:** Vite `base` set to `./` so all assets load correctly under the GitHub Pages `/uniflow-core/` subpath.
+- Cancelled (STATUS:CANCELLED) events are shown with a visible "cancelled" style instead of being silently filtered.
+- Dependency audit clean: vite/vitest/typescript upgraded; `npm audit` reports 0 vulnerabilities.
+- Honest UX: the un-wired `digestHour` setting is hidden; Settings states plainly that this version has no automatic sync or phone notifications.
+
+### Tests
+- 11 new regression tests (54 total, all passing): multi-calendar mark isolation, vanished-event retention and resolution, source-scoped IDs, legacy migration, RECURRENCE-ID tz matching, cross-source duplicate UIDs.
+- 17/17 real-browser E2E checks (Chrome for Testing, mobile + desktop viewports) covering demo import, persistence across reload, multi-calendar isolation, vanished detection/confirmation, digest, export/clear controls, zh-CN/en switching, subpath deployment, zero-network privacy, and a clean console.
+
 ## [0.1.0] — UniFlow Core — First Public MVP
 
 ### Added
