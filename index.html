@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="UniFlow — free, no-AI study task & deadline dashboard for university students. Import your school's ICS calendar." />
+    <title>UniFlow — Study Deadlines Dashboard</title>
+    <link rel="stylesheet" href="/src/style.css" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪙</text></svg>" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">🪙</span>
+        <div>
+          <h1>UniFlow</h1>
+          <p class="tagline" id="tagline"></p>
+        </div>
+      </div>
+      <button id="langToggle" class="btn ghost small" title="Switch language">中文 / EN</button>
+    </header>
+
+    <!-- Onboarding: shown only when no calendar has been imported -->
+    <section id="onboarding" class="card onboarding hidden">
+      <h2 id="onbTitle"></h2>
+      <ol class="steps">
+        <li id="onbStep1"></li>
+        <li id="onbStep2"></li>
+        <li id="onbStep3"></li>
+      </ol>
+      <div id="dropZone" class="dropzone" tabindex="0" role="button" aria-label="Import ICS file">
+        <input type="file" id="fileInput" accept=".ics,text/calendar" hidden />
+        <span id="dropLabel"></span>
+      </div>
+      <button id="demoBtn" class="btn ghost"></button>
+    </section>
+
+    <main id="app" class="hidden">
+      <nav class="tabs" role="tablist" id="tabbar">
+        <button class="tab active" data-view="today" role="tab"></button>
+        <button class="tab" data-view="upcoming" role="tab"></button>
+        <button class="tab" data-view="all" role="tab"></button>
+        <button class="tab" data-view="overdue" role="tab"></button>
+        <button class="tab" data-view="changes" role="tab"></button>
+        <button class="tab" data-view="settings" role="tab"></button>
+      </nav>
+
+      <section id="view-today" class="view">
+        <div class="digest-box card">
+          <div class="digest-head">
+            <h3 id="digestTitle"></h3>
+            <button id="digestBtn" class="btn primary small"></button>
+          </div>
+          <p class="muted" id="digestNote"></p>
+        </div>
+        <div id="list-today" class="event-list"></div>
+      </section>
+
+      <section id="view-upcoming" class="view hidden">
+        <div id="list-upcoming" class="event-list"></div>
+      </section>
+
+      <section id="view-all" class="view hidden">
+        <div class="toolbar">
+          <button id="importMoreBtn" class="btn primary small"></button>
+          <div id="sourceList" class="source-list"></div>
+        </div>
+        <div id="list-all" class="event-list"></div>
+      </section>
+
+      <section id="view-overdue" class="view hidden">
+        <div id="list-overdue" class="event-list"></div>
+      </section>
+
+      <section id="view-changes" class="view hidden">
+        <div id="list-changes" class="event-list"></div>
+      </section>
+
+      <section id="view-settings" class="view hidden">
+        <div class="card settings-card">
+          <h3 id="settingsHeading"></h3>
+          <label><span id="lblTimezone"></span>
+            <input id="setTimezone" type="text" list="tzList" />
+            <datalist id="tzList"></datalist>
+          </label>
+          <label><span id="lblLanguage"></span>
+            <select id="setLanguage"><option value="en">English</option><option value="zh-CN">简体中文</option></select>
+          </label>
+          <label><span id="lblDigestHour"></span><input id="setDigestHour" type="number" min="0" max="23" /></label>
+          <label><span id="lblUrgentHours"></span><input id="setUrgentHours" type="number" min="1" max="720" /></label>
+          <label><span id="lblHighHours"></span><input id="setHighHours" type="number" min="1" max="720" /></label>
+          <label><span id="lblSoonDays"></span><input id="setSoonDays" type="number" min="1" max="90" /></label>
+          <p class="muted small" id="privacyNote"></p>
+          <div class="settings-actions">
+            <button id="exportBtn" class="btn ghost"></button>
+            <button id="clearBtn" class="btn danger"></button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-box card">
+        <div class="modal-head">
+          <h3 id="modalTitle"></h3>
+          <button id="modalClose" class="btn ghost small"></button>
+        </div>
+        <div id="modalBody"></div>
+      </div>
+    </div>
+
+    <footer class="footer">
+      <p id="footerNote"></p>
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,26 @@
+{
+  "name": "uniflow-core",
+  "version": "0.1.0",
+  "description": "UniFlow — free, cross-university, no-AI study task & deadline dashboard for students. Import your school's ICS calendar, see what's due.",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "ical.js": "^2.2.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "vite": "^5.4.8",
+    "vitest": "^2.1.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
