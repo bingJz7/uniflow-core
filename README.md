@@ -62,7 +62,7 @@ npm run build    # outputs dist/
 npm test         # unit test suite (91 tests)
 ```
 
-Requires Node.js `^20.19.0 || >=22.12.0` (see `package.json`). An optional repeatable real-browser E2E suite is documented in [CONTRIBUTING.md](CONTRIBUTING.md).
+Requires Node.js `^22.12.0 || ^24.0.0 || >=26.0.0` (see `package.json`). An optional repeatable real-browser E2E suite is documented in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Deploy `dist/` to GitHub Pages, Netlify, Cloudflare Pages, or any web server. (CI in `.github/workflows/` runs build + tests on every push.)
 

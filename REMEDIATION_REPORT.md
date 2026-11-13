@@ -58,7 +58,7 @@ Scope discipline: only the four blocking issues were touched. No refactor, no de
 | Personal absolute paths in the public E2E script | hard-coded `/Users/…` Chrome path, `/Users/…/examples/…`, `/tmp/…` fixtures | `UNIFLOW_CHROME` / `UNIFLOW_E2E_BASE` / `UNIFLOW_E2E_OUT` / `UNIFLOW_E2E_PROFILE` env vars; fixtures derived at runtime from `examples/sample-calendar.ics` via `__dirname`; failure to set Chrome exits **2** with install instructions |
 | Exit code | `process.exit(0)` always ("CI gate is unit tests") | `process.exit(failed.length ? 1 : 0)`; crash handler exits 1 (verified: earlier failing runs returned 1) |
 | Assertions | `>=1`, `['assignment','other'].includes(cat)` | exact equality: `=== 1` rows, strict `assignment` / `In progress`, unchanged 26 → 26 counts, `snapshots === before − after` |
-| Node declaration | `engines: >=18` (Vite 7 needs ≥20.19/≥22.12), CI on Node 20 | `engines: ^20.19.0 \|\| >=22.12.0`; **CI + Pages workflows on Node 22**; README (en/zh) + CONTRIBUTING updated |
+| Node declaration | `engines: >=18`, CI on Node 20 | `engines: ^22.12.0 \|\| ^24.0.0 \|\| >=26.0.0` (Vitest 5's supported range); **CI + Pages workflows on Node 22**; README (en/zh) + CONTRIBUTING updated |
 | Repeatability | ad-hoc `/tmp` state | fresh Chrome profile per run (temp dir) + in-page `localStorage.clear()` + runtime fixtures; two consecutive runs both **32/32**, exit 0 |
 | Data used | fictional | still fictional only — demo calendar + generated fixtures; no real student data, URLs, or credentials |
 

@@ -20,7 +20,7 @@ npm test         # run the test suite
 npm run build    # type-check + production build
 ```
 
-Requirements: Node.js `^20.19.0 || >=22.12.0` (Vite 7's requirement — see `package.json` `engines`).
+Requirements: Node.js `^22.12.0 || ^24.0.0 || >=26.0.0` (Vitest 5 / Vite 7 requirement — see `package.json` `engines`). Node 20 and below are not supported.
 
 ## Browser E2E test (optional, repeatable)
 

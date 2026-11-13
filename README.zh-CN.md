@@ -62,7 +62,7 @@ npm run build    # 输出 dist/
 npm test         # 单元测试套件（91 个测试）
 ```
 
-需要 Node.js `^20.19.0 || >=22.12.0`（见 `package.json`）。可选的可重复浏览器 E2E 测试见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+需要 Node.js `^22.12.0 || ^24.0.0 || >=26.0.0`（见 `package.json`）。可选的可重复浏览器 E2E 测试见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 把 `dist/` 部署到 GitHub Pages、Netlify、Cloudflare Pages 或任意网站服务器即可。
 
