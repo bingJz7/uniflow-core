@@ -10,7 +10,7 @@ import { t, type Lang } from './i18n.js';
 import { buildDigest, enrich, eventsOverdue, eventsToday, eventsUpcoming, type EnrichedEvent } from './rules.js';
 import {
   addVanished, clearAllData, downloadFile, exportAllData, loadArchived, loadChanges, loadKept, loadMarks,
-  loadSettings, loadSources, loadVanished, migrateLegacyMarks, removeKept, resolveVanished,
+  loadSettings, loadSources, loadVanished, migrateLegacyMarks, removeKept, resolveKept, resolveVanished,
   saveArchived, saveChanges, saveKept, saveMarks, saveSettings, saveSources, saveVanished, updateMark,
 } from './storage.js';
 import { diffSnapshots } from './sync.js';
@@ -184,10 +184,12 @@ function renderEventLists(): void {
   const enriched = enrich(allEvents(), marks, settings, nowMs);
   // Kept-visible ("source unconfirmed") events belong in All / Overdue / the
   // digest — where the student explicitly manages them — but not in the
-  // regular Today / Upcoming planning views.
-  const confirmed = enriched.filter((e) => !e.event.unconfirmed);
-  renderList('#list-today', eventsToday(confirmed, settings.timezone, nowMs), nowMs);
-  renderList('#list-upcoming', eventsUpcoming(confirmed, settings.timezone, nowMs, settings.soonDays), nowMs);
+  // regular Today / Upcoming planning views. Cancelled events (STATUS:
+  // CANCELLED) are viewable in All (final-gate fix 2) but are NOT pending
+  // DDL, so they never appear in the planning views either.
+  const planning = enriched.filter((e) => !e.event.unconfirmed && !e.event.cancelled);
+  renderList('#list-today', eventsToday(planning, settings.timezone, nowMs), nowMs);
+  renderList('#list-upcoming', eventsUpcoming(planning, settings.timezone, nowMs, settings.soonDays), nowMs);
   renderList('#list-all', enriched, nowMs);
   renderList('#list-overdue', eventsOverdue(enriched, nowMs), nowMs);
   renderChanges();
@@ -224,7 +226,9 @@ function renderList(sel: string, items: EnrichedEvent[], nowMs: number): void {
 function renderEventItem(item: EnrichedEvent, nowMs: number): HTMLElement {
   const lang = settings.language;
   const div = document.createElement('div');
-  div.className = `card event-item priority-${item.priority ?? 'later'}` + (item.status === 'completed' ? ' completed' : '');
+  div.className = `card event-item priority-${item.priority ?? 'later'}`
+    + (item.status === 'completed' ? ' completed' : '')
+    + (item.event.cancelled ? ' cancelled' : '');
 
   const head = document.createElement('div');
   head.className = 'head';
@@ -247,7 +251,9 @@ function renderEventItem(item: EnrichedEvent, nowMs: number): HTMLElement {
     hour: item.event.allDay ? undefined : '2-digit', minute: item.event.allDay ? undefined : '2-digit', hour12: false,
   }).format(new Date(item.event.startMs));
   meta.textContent = `${item.event.allDay ? t(lang, 'allDay') : t(lang, 'starts')} · ${when}`;
-  if (!item.event.allDay) {
+  // No countdown for cancelled events: a red "overdue" countdown on a cancelled
+  // item would contradict "never treated as an urgent pending DDL".
+  if (!item.event.allDay && !item.event.cancelled) {
     const cd = document.createElement('span');
     cd.className = 'countdown ' + (item.event.startMs < nowMs ? 'danger' : item.event.startMs - nowMs < 86400000 ? 'warn' : 'ok');
     cd.textContent = ` · ${countdown(item.event.startMs - nowMs, lang)}`;
@@ -302,11 +308,12 @@ function renderEventItem(item: EnrichedEvent, nowMs: number): HTMLElement {
   controls.appendChild(btns);
   div.appendChild(controls);
 
-  // flagged: event vanished from its feed (kept, not deleted)
+  // flagged: event the source calendar marked CANCELLED (final-gate fix 2 —
+  // visible again; enrich() no longer filters these events out)
   if (item.event.cancelled) {
     const flag = document.createElement('div');
-    flag.className = 'event-flag';
-    flag.textContent = lang === 'zh-CN' ? '⚠️ 日历源将其标记为已取消（STATUS:CANCELLED）' : '⚠️ The source calendar marked this CANCELLED';
+    flag.className = 'event-flag cancelled';
+    flag.textContent = t(lang, 'cancelledFlag');
     div.appendChild(flag);
   }
   if (item.event.unconfirmed) {
@@ -314,8 +321,60 @@ function renderEventItem(item: EnrichedEvent, nowMs: number): HTMLElement {
     flag.className = 'event-flag unconfirmed';
     flag.textContent = t(lang, 'unconfirmedFlag');
     div.appendChild(flag);
+
+    // Final-gate fix 1: the student must be able to END the kept-visible
+    // state themselves. Both actions archive the snapshot (event + mark) so
+    // nothing is silently dropped; a confirm dialog states where it goes,
+    // and the action is recorded in the Changes view.
+    const keptActions = document.createElement('div');
+    keptActions.className = 'event-controls';
+    const keptBtn = (label: string, primary: boolean, fn: () => void) => {
+      const b = document.createElement('button');
+      b.className = 'status-btn' + (primary ? ' active' : '');
+      b.textContent = label;
+      b.addEventListener('click', fn);
+      return b;
+    };
+    keptActions.appendChild(keptBtn(t(lang, 'actMarkCancelled'), false, () => {
+      if (!window.confirm(t(lang, 'keptCancelConfirm', { summary: item.event.summary }))) return;
+      endKept(item.event.id, 'cancelled', item.event.summary);
+    }));
+    keptActions.appendChild(keptBtn(t(lang, 'actArchive'), false, () => {
+      if (!window.confirm(t(lang, 'keptArchiveConfirm', { summary: item.event.summary }))) return;
+      endKept(item.event.id, 'archived', item.event.summary);
+    }));
+    div.appendChild(keptActions);
   }
   return div;
+}
+
+/**
+ * Move a kept-visible event into the archived store and log the action.
+ * Passes the CURRENT mark (the student may have edited category/status while
+ * the event was kept-visible) so the archived snapshot reflects their latest
+ * intent — never the stale vanish-time mark.
+ */
+function endKept(id: string, resolution: 'archived' | 'cancelled', summary: string): void {
+  const res = resolveKept(kept, id, resolution, marks[id]);
+  kept = res.kept;
+  archived = res.archived;
+  // the live mark has been captured into the archive snapshot — keep both in sync
+  if (marks[id]) {
+    marks = { ...marks };
+    delete marks[id];
+    saveMarks(marks);
+  }
+  saveKept(kept);
+  saveArchived(archived);
+  changes.push({
+    kind: 'removed', uid: '-', summary,
+    detail: resolution === 'cancelled'
+      ? 'kept-visible event marked cancelled by user (archived, nothing deleted)'
+      : 'kept-visible event archived by user (nothing deleted)',
+    detectedAt: new Date().toISOString(),
+  });
+  saveChanges(changes);
+  renderEventLists();
 }
 
 // ---------- changes view ----------
@@ -595,8 +654,13 @@ function importIcsText(icsText: string, name: string, sourceType: 'file' | 'demo
         const snap = vanished[addedEv.id];
         const { vanished: nextV } = resolveVanished(vanished, addedEv.id, 'restored');
         vanished = nextV;
-        marks[addedEv.id] = snap.mark;
-        marksChanged = true;
+        // The student may have edited the mark while the event was vanished/
+        // kept-visible — the live mark is authoritative; only fall back to the
+        // snapshot mark when the event was never touched locally.
+        if (!marks[addedEv.id]) {
+          marks[addedEv.id] = snap.mark;
+          marksChanged = true;
+        }
       }
       if (kept[addedEv.id]) {
         kept = removeKept(kept, addedEv.id);

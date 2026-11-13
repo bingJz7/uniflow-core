@@ -59,8 +59,10 @@ UniFlow 是纯静态网页应用，任何静态托管都可以：
 npm install
 npm run dev      # 本地开发服务器
 npm run build    # 输出 dist/
-npm test         # 43 个自动化测试
+npm test         # 单元测试套件（91 个测试）
 ```
+
+需要 Node.js `^20.19.0 || >=22.12.0`（见 `package.json`）。可选的可重复浏览器 E2E 测试见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 把 `dist/` 部署到 GitHub Pages、Netlify、Cloudflare Pages 或任意网站服务器即可。
 

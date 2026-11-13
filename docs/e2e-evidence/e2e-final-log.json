@@ -1,0 +1,162 @@
+[
+  {
+    "name": "FIX 3/B1: legacy mark migrated to the EXACT source-scoped key",
+    "ok": true,
+    "detail": "{\"category\":\"assignment\",\"status\":\"in_progress\"}"
+  },
+  {
+    "name": "FIX 3/B1: exactly one Assignment 1 row rendered",
+    "ok": true,
+    "detail": "1 rows"
+  },
+  {
+    "name": "FIX 3/B1: migrated category is STRICTLY assignment in the UI",
+    "ok": true,
+    "detail": "cat=assignment"
+  },
+  {
+    "name": "FIX 3/B1: migrated status is STRICTLY In progress in the UI",
+    "ok": true,
+    "detail": "status=In progress"
+  },
+  {
+    "name": "FIX 3/B1: no legacy (unprefixed) keys remain in the marks store",
+    "ok": true,
+    "detail": "[]"
+  },
+  {
+    "name": "setup: sample calendar imported",
+    "ok": true,
+    "detail": "25 events (2 sources)"
+  },
+  {
+    "name": "B3a: invalid ICS refused with clear error",
+    "ok": true,
+    "detail": "\n      \n        \n          Something went wrong\n          Cl"
+  },
+  {
+    "name": "B3a: event count STRICTLY unchanged after invalid import",
+    "ok": true,
+    "detail": "25 → 25"
+  },
+  {
+    "name": "B2: exactly 1 vanished event pending before keep-visible",
+    "ok": true,
+    "detail": "1 pending"
+  },
+  {
+    "name": "B2: keep-visible clears pending list",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "B2: kept event visible in All with unconfirmed flag",
+    "ok": true,
+    "detail": "1 flagged"
+  },
+  {
+    "name": "FIX 1/B2: kept event survives refresh with category",
+    "ok": true,
+    "detail": "flags=1, cat=assignment"
+  },
+  {
+    "name": "FIX 1: kept event exposes an Archive action after refresh",
+    "ok": true,
+    "detail": "1 archive button(s)"
+  },
+  {
+    "name": "FIX 1: after Archive, no unconfirmed flags remain in All",
+    "ok": true,
+    "detail": "0 flagged"
+  },
+  {
+    "name": "FIX 1: kept store is empty after archiving",
+    "ok": true,
+    "detail": "{}"
+  },
+  {
+    "name": "FIX 1: archived store holds the snapshot with mark preserved (no data loss)",
+    "ok": true,
+    "detail": "[{\"r\":\"archived\",\"m\":{\"category\":\"assignment\",\"status\":\"not_started\"}}]"
+  },
+  {
+    "name": "B2: vanished snapshot re-created for the repeat disappearance",
+    "ok": true,
+    "detail": "1 pending"
+  },
+  {
+    "name": "B2: kept record re-established",
+    "ok": true,
+    "detail": "1 flagged"
+  },
+  {
+    "name": "B2: re-added event renders EXACTLY once (no duplicate)",
+    "ok": true,
+    "detail": "1 item(s), 0 flagged"
+  },
+  {
+    "name": "FIX 2: cancelled event IS visible in All",
+    "ok": true,
+    "detail": "1 row(s)"
+  },
+  {
+    "name": "FIX 2: cancelled event shows the CANCELLED flag",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "FIX 2: cancelled card is de-emphasised (.cancelled class)",
+    "ok": true,
+    "detail": "class check"
+  },
+  {
+    "name": "FIX 2: cancelled card shows NO overdue countdown",
+    "ok": true,
+    "detail": "0 countdown(s)"
+  },
+  {
+    "name": "FIX 2: cancelled deadline NOT listed as overdue despite being past-due",
+    "ok": true,
+    "detail": "CS101 Assignment 1 — Python BasicsOVERDUEStarts · "
+  },
+  {
+    "name": "FIX 2: overdue badge not created by cancelled event",
+    "ok": true,
+    "detail": "1 → 1"
+  },
+  {
+    "name": "FIX 2: control — real past-due deadline still shows in Overdue (exactly the migrated one)",
+    "ok": true,
+    "detail": "1"
+  },
+  {
+    "name": "B3b: declining empty re-import keeps event count EXACTLY unchanged",
+    "ok": true,
+    "detail": "26 → 26"
+  },
+  {
+    "name": "B3b: second decline still EXACTLY unchanged",
+    "ok": true,
+    "detail": "26"
+  },
+  {
+    "name": "B3b: accepting empty re-import preserves EXACTLY the vanished events as snapshots",
+    "ok": true,
+    "detail": "before=26, after=2, snapshots=24"
+  },
+  {
+    "name": "Export JSON: sources+marks+vanished+kept+archived(all 1, resolution=archived)",
+    "ok": true,
+    "detail": "sources=3, archived=1"
+  },
+  {
+    "name": "Clear all data: double-confirm → onboarding shown after refresh",
+    "ok": true,
+    "detail": "storage empty=true"
+  },
+  {
+    "name": "no console/page errors in whole session",
+    "ok": true,
+    "detail": ""
+  }
+]

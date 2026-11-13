@@ -26,11 +26,23 @@ export function scopedEventId(sourceId: string, uid: string, instanceKey: string
   return `${sourceId}:${uid}/${instanceKey}`;
 }
 
-/** Parse a scoped id into {sourceId, rest}. Legacy (v0.1.0) ids have no prefix. */
-export function parseScopedEventId(id: string): { sourceId: string | null; rest: string } {
+/**
+ * Parse a scoped id into {sourceId, rest}.
+ *
+ * SECURITY (final-gate fix 3): a bare first-`:` split is an UNSAFE assumption
+ * because UIDs may legally contain `:` (RFC 5545 UIDs are free text). A legacy
+ * key like `team:x@u/single` would previously be misread as source-scoped.
+ * When `knownSourceIds` is provided, a key only counts as source-scoped if the
+ * prefix before the first `:` is an id the app actually created; otherwise the
+ * WHOLE id is treated as a legacy rest-id (`uid/instanceKey`). Without the
+ * set the old heuristic is kept for backwards compatibility.
+ */
+export function parseScopedEventId(id: string, knownSourceIds?: ReadonlySet<string>): { sourceId: string | null; rest: string } {
   const idx = id.indexOf(':');
   if (idx <= 0) return { sourceId: null, rest: id };
-  return { sourceId: id.slice(0, idx), rest: id.slice(idx + 1) };
+  const prefix = id.slice(0, idx);
+  if (knownSourceIds && !knownSourceIds.has(prefix)) return { sourceId: null, rest: id };
+  return { sourceId: prefix, rest: id.slice(idx + 1) };
 }
 
 function readJSON<T>(key: string, fallback: T): T {
@@ -95,24 +107,36 @@ export function updateMark(
  * (the student's intent — category/status — applies to all of them), then
  * the legacy key is removed. Unresolvable legacy keys are kept: we never
  * destroy user data we cannot confidently map.
+ *
+ * HARDENED (final-gate fix 3): two unsafe assumptions removed.
+ *  1. "Text before the first `:` is a source id" — wrong for UIDs that
+ *     contain `:` (e.g. `team:x@u/single`). A key is now only treated as
+ *     source-scoped when the prefix matches a KNOWN source id (the ids in
+ *     `liveBySource`, i.e. sources actually loaded from storage); anything
+ *     else is a legacy rest-id, matched by FULL-STRING equality.
+ *  2. "`uid/instanceKey` can be split at `/`" — wrong for UIDs containing
+ *     `/`. The scoped key is rebuilt as `${srcId}:${rest}` WITHOUT ever
+ *     decomposing the rest-id, so any legal UID (`:`, `/`, …) round-trips.
  */
 export function migrateLegacyMarks(
   marks: Record<string, EventMark>,
   liveBySource: Map<string, Set<string>>, // sourceId -> set of `uid/instanceKey` rest-ids
 ): Record<string, EventMark> {
   let changed = false;
+  const knownSourceIds = new Set(liveBySource.keys());
   const next: Record<string, EventMark> = {};
   for (const [id, mark] of Object.entries(marks)) {
-    const { sourceId, rest } = parseScopedEventId(id);
+    const { sourceId, rest } = parseScopedEventId(id, knownSourceIds);
     if (sourceId !== null) {
       next[id] = mark;
       continue;
     }
-    // legacy key — find sources that contain this event
+    // legacy key — the WHOLE id is the `uid/instanceKey` rest-id.
+    // Never decompose it at `/` or `:`; match and rebuild verbatim.
     let mapped = false;
     for (const [srcId, restIds] of liveBySource) {
       if (restIds.has(rest)) {
-        next[scopedEventId(srcId, rest.split('/')[0], rest.split('/')[1] ?? 'single')] = mark;
+        next[`${srcId}:${rest}`] = mark;
         mapped = true;
       }
     }
@@ -207,6 +231,38 @@ export function removeKept(kept: Record<string, VanishedEvent>, id: string): Rec
   delete next[id];
   saveKept(next);
   return next;
+}
+
+/**
+ * Final-gate fix 1: "Keep visible" must be ENDABLE by the student.
+ * Resolves a kept-visible event by ARCHIVING it (explicitly, with a UI
+ * confirmation) — the snapshot with its mark moves to the archived store
+ * and stops rendering. Nothing is silently dropped: the record stays in
+ * the device's data export, and the Changes view records the action.
+ *
+ * `currentMark`: while an event is kept-visible the student may still edit
+ * its category/status (the live marks store stays authoritative). Pass the
+ * CURRENT mark so the archived snapshot reflects the student's latest
+ * intent instead of the stale vanish-time mark.
+ */
+export function resolveKept(
+  kept: Record<string, VanishedEvent>,
+  id: string,
+  resolution: 'archived' | 'cancelled',
+  currentMark?: EventMark,
+): { kept: Record<string, VanishedEvent>; archived: Record<string, VanishedEvent> } {
+  const item = kept[id];
+  const archived = loadArchived();
+  if (!item) return { kept, archived };
+  const nextKept = { ...kept };
+  delete nextKept[id];
+  const nextArchived = {
+    ...archived,
+    [id]: { ...item, mark: currentMark ?? item.mark, resolution, resolvedAt: new Date().toISOString() },
+  };
+  saveKept(nextKept);
+  saveArchived(nextArchived);
+  return { kept: nextKept, archived: nextArchived };
 }
 
 // ---------- kept events (student chose "keep visible" for a vanished event) ----------

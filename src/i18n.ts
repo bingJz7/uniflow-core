@@ -101,6 +101,11 @@ const en: Dict = {
   actArchive: 'Archive',
   actKeepVisible: 'Keep visible',
   archivedNote: '{n} resolved item(s) archived. Nothing was deleted.',
+  // kept-visible management (final gate)
+  keptArchiveConfirm: 'Archive "{summary}"? It will stop appearing in your lists, but stays saved on this device (included in your data export). Nothing is deleted.',
+  keptCancelConfirm: 'Mark "{summary}" as cancelled and archive it? It will stop appearing in your lists, but stays saved on this device (included in your data export). Nothing is deleted.',
+  // cancelled events (final gate)
+  cancelledFlag: '⚠️ The source calendar marked this CANCELLED — shown for your information only, never counted as an overdue task.',
   // honest-copy guardrails (Phase 3)
   noAutoSyncNote: 'ℹ️ This version has no automatic sync and cannot send phone notifications. Re-import your updated ICS file to refresh your data — the in-app daily digest is generated on demand.',
 };
@@ -188,6 +193,11 @@ const zh: Dict = {
   actArchive: '归档',
   actKeepVisible: '继续显示',
   archivedNote: '已归档 {n} 条已处理记录。没有任何数据被删除。',
+  // kept-visible 管理（最终验收）
+  keptArchiveConfirm: '归档“{summary}”？它将不再出现在列表中，但会保存在本设备上（包含在数据导出中）。不会删除任何数据。',
+  keptCancelConfirm: '把“{summary}”标记为已取消并归档？它将不再出现在列表中，但会保存在本设备上（包含在数据导出中）。不会删除任何数据。',
+  // 已取消事件（最终验收）
+  cancelledFlag: '⚠️ 日历源将此事件标记为已取消（STATUS:CANCELLED）——仅供查看，不会计入逾期任务。',
   noAutoSyncNote: 'ℹ️ 本版本尚无自动同步，也无法发送手机通知。请重新导入更新后的 ICS 文件来刷新数据；应用内每日摘要按需生成。',
 };
 

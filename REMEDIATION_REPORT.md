@@ -4,7 +4,80 @@ Branch: `fix/v0.1.1-remediation` · Target: merge into `main` for **v0.1.1** · 
 
 ---
 
-## 0. Round-2 review fixes (this section)
+## 0. Final release gate — 4 blocking issues (this round)
+
+Scope discipline: only the four blocking issues were touched. No refactor, no dependency reinstall, no deletions, no release.
+
+### Issue 1 — "Keep visible" had no management exit ✅ FIXED
+
+**Root cause:** kept events rendered fine, but there was no way to end the kept state. The Changes list only lists *pending* vanished items, so a kept event could only be resolved by re-importing the source — i.e. the student was stuck with it forever.
+
+**Fix:**
+- Kept cards (All / Overdue / digest) now carry two explicit actions: **Mark cancelled** and **Archive**.
+- Both show a confirm dialog that states exactly where the record goes ("stops appearing in your lists, stays saved on this device, included in your data export") — no silent disappearance.
+- New `resolveKept()` moves the snapshot **with its mark** into the archived store (`uniflow.archived.v1`, `resolution` + `resolvedAt`); the kept store is emptied; the action is recorded in Changes.
+- Mark accuracy: while kept-visible the live mark stays authoritative, so archiving captures the **current** category/status (not the stale vanish-time mark). The re-add path was fixed the same way: a live mark is never overwritten by an older snapshot mark.
+
+**Evidence:**
+- Unit: `tests/final.test.ts` — archive/cancel resolution, persisted stores, unknown-id no-op, current-mark-wins, "stops rendering" pipeline check.
+- E2E (`e2e-final-log.json`, steps *FIX 1*): Keep visible → **refresh** (flag + both action buttons survive) → click **Archive** → 0 unconfirmed flags, kept store `{}`, archived store has exactly 1 entry with `resolution:"archived"` and `mark.category:"assignment"` (the category set while kept). Screenshot: `f1-kept-row.png`, `f1-kept-manageable.png`.
+
+### Issue 2 — `STATUS:CANCELLED` was invisible ✅ FIXED
+
+**Root cause:** `enrich()` ended with `.filter((e) => !e.cancelled)`, so cancelled events never reached the renderer — the existing ⚠️ CANCELLED flag was dead code.
+
+**Fix — visible, but never actionable DDL:**
+- `enrich()` keeps cancelled events; the card renders with a grey flag and a struck-through, de-emphasised title.
+- `priorityFor()` returns `undefined` for cancelled events → no priority pill.
+- `eventsOverdue()` and `pendingOnly()` exclude cancelled events → no overdue badge, no "Overdue" row.
+- Today / Upcoming planning views exclude them (planning = live, actionable items); All is the place to inspect them.
+- No countdown ("· overdue") is rendered for a cancelled card — a red overdue countdown would contradict the "not a task" rule.
+- Digest: overdue/upcoming deadline sections exclude cancelled events; a cancelled item that falls on *today* is still listed but annotated `🚫 [CANCELLED]` / `🚫［已取消］`.
+
+**Evidence:**
+- Unit: `tests/final.test.ts` (8 tests) — visible in `enrich`, no priority when overdue *or* urgent, excluded from overdue/pendingOnly, digest annotation in en + zh-CN, planning-view exclusion, control case proving a non-cancelled past-due item still reports `overdue`.
+- E2E (`FIX 2` steps): cancelled row visible in All, `.event-flag.cancelled` present, `.cancelled` class present, **0 countdowns**, not listed under Overdue after being categorised as a deadline, overdue badge unchanged, control row still overdue. Screenshot: `f2-cancelled-row.png`.
+
+### Issue 3 — Unsafe UID assumptions in legacy migration ✅ FIXED
+
+**Root cause:** two wrong assumptions, both legal to violate (RFC 5545 UIDs are free text):
+1. `parseScopedEventId()` treated everything before the first `:` as a source id — so a legacy key for UID `team:x@u` was misread as source-scoped and never migrated.
+2. `migrateLegacyMarks()` rebuilt the target key with `rest.split('/')` — a UID containing `/` produced a key that could never match a live event (`src-x:cal/dept@u` instead of `src-x:cal/dept@u/single`), so the student's category/status was silently lost on upgrade.
+
+**Fix:**
+- A key is only treated as source-scoped when its prefix is a **known source id** (`liveBySource` keys, i.e. sources actually loaded); otherwise the whole string is a legacy rest-id.
+- Legacy matching is **full-string equality** on the rest-id, and the target key is rebuilt as `` `${srcId}:${rest}` `` **without ever decomposing** the uid/instance pair — so `:`, `/`, and any other legal character round-trip.
+- Unresolvable legacy keys are still preserved, never deleted.
+
+**Evidence:** `tests/final.test.ts` (`Fix 3` block, 8 tests): colon UID, slash UID, colon+slash recurring occurrence key, false-match guard (`a:b/single` never matches `a/single` or `b/single`), real-source passthrough, `parseScopedEventId` with/without the known-id set, a full v0.1.0→v0.1.1 end-to-end migration using UID `team:dept/spring-2026@university.example` (category **and** status verified in the enriched view), and multi-source mapping. E2E `FIX 3/B1` steps assert the migrated key exactly, the UI category **strictly** `assignment`, the UI status **strictly** `In progress`, and that no unprefixed legacy keys remain.
+
+### Issue 4 — Test credibility & environment declarations ✅ FIXED
+
+| Item | Before | Now |
+|---|---|---|
+| Personal absolute paths in the public E2E script | hard-coded `/Users/…` Chrome path, `/Users/…/examples/…`, `/tmp/…` fixtures | `UNIFLOW_CHROME` / `UNIFLOW_E2E_BASE` / `UNIFLOW_E2E_OUT` / `UNIFLOW_E2E_PROFILE` env vars; fixtures derived at runtime from `examples/sample-calendar.ics` via `__dirname`; failure to set Chrome exits **2** with install instructions |
+| Exit code | `process.exit(0)` always ("CI gate is unit tests") | `process.exit(failed.length ? 1 : 0)`; crash handler exits 1 (verified: earlier failing runs returned 1) |
+| Assertions | `>=1`, `['assignment','other'].includes(cat)` | exact equality: `=== 1` rows, strict `assignment` / `In progress`, unchanged 26 → 26 counts, `snapshots === before − after` |
+| Node declaration | `engines: >=18` (Vite 7 needs ≥20.19/≥22.12), CI on Node 20 | `engines: ^20.19.0 \|\| >=22.12.0`; **CI + Pages workflows on Node 22**; README (en/zh) + CONTRIBUTING updated |
+| Repeatability | ad-hoc `/tmp` state | fresh Chrome profile per run (temp dir) + in-page `localStorage.clear()` + runtime fixtures; two consecutive runs both **32/32**, exit 0 |
+| Data used | fictional | still fictional only — demo calendar + generated fixtures; no real student data, URLs, or credentials |
+
+Also fixed while making the suite honest: the script is now `e2e-round2-script.cjs` (the repo is `"type": "module"`), driven by `--proxy-server=direct://` (macOS scproxy hang) with a bounded `goto` retry, and documented step-by-step in `CONTRIBUTING.md` + `docs/e2e-evidence/README.md`.
+
+### Verification (final gate)
+
+| Check | Result |
+|---|---|
+| `npm test` (Vitest) | **92/92 pass**, 8 files (71 → 92: +21 final-gate tests) |
+| `npm run build` (`tsc --noEmit` + `vite build`) | pass |
+| `npm audit` | **0 vulnerabilities** |
+| Real-browser E2E | **32/32 pass**, 0 console/page errors, exit 0 |
+| Repeatability | second consecutive run: 32/32, exit 0 |
+| Scope | no deletion, no merge, no release; `uniflow-core` / `uniflow-skills` separation and No-AI First unchanged |
+
+---
+
+## 0.1 Round-2 review fixes
 
 ### BLOCKER 1 — Legacy marks migration contract mismatch ✅ FIXED
 
@@ -108,25 +181,52 @@ Nothing is auto-deleted. The user's prior category and status are displayed alon
 
 | Suite | Result |
 |---|---|
-| Unit (Vitest) | **54/54 pass** (11 new regression tests) |
+| Unit (Vitest) | **92/92 pass** (71 after round 2, +21 final-gate tests in `tests/final.test.ts`) |
 | Build (`tsc` + `vite build`) | pass |
 | `npm audit` | 0 vulnerabilities |
-| Real-browser E2E | **17/17 pass**, 0 console errors |
+| Real-browser E2E (final gate) | **32/32 pass**, 0 console errors, exit 0 |
+| Real-browser E2E (earlier rounds) | round-1 17/17, round-2 16/16 (superseded by the final-gate suite) |
 
-E2E commands: `python3 -m http.server 8765` on `dist/` copy; `node run.js` (playwright-core + Chrome for Testing, mobile 390×844 and desktop 1280×800 viewports).
+E2E commands (exact, repeatable — see `CONTRIBUTING.md`):
+
+```bash
+npm run build
+npx http-server dist -p 8765 -a 127.0.0.1        # serve dist/ as web root
+UNIFLOW_CHROME="/path/to/Chrome for Testing" \
+NODE_PATH=/path/to/scratch/node_modules \
+node docs/e2e-evidence/e2e-round2-script.cjs      # exit 0 = all passed
+```
+
+Mobile viewport 390×844 (desktop layout verified in round 1). Output dir holds
+`e2e-round2-log.json` + screenshots; the committed copy is
+`docs/e2e-evidence/e2e-final-log.json`.
 
 ## 6. Known issues / remaining risks
 
 1. ICS subscription URLs still can't be fetched from the browser (CORS) — file import only. Planned v0.2 via user-owned automation.
 2. Push notifications not implemented (interface ready). Not claimed as done.
 3. GitHub Actions scheduled sync unimplemented (design documented).
-4. E2E ran against a local build served at the same subpath structure as Pages; the Pages deploy itself re-runs on merge and was verified separately earlier today.
+4. **E2E is not part of CI** — it needs a real Chrome binary, so it stays a documented local/PR-review step (unit tests + build are the CI gate).
+5. **Cancelled events are intentionally excluded from Today/Upcoming/Overdue/digest-deadline sections** — they are viewable in All (flagged) and annotated in the digest's Today section. If a student wants them in the planning views, that is a product decision, not a bug.
+6. **Archived records have no UI list yet** — they are preserved in storage and included in the JSON export, and the Changes view reports the archived count. "View archived" would be a v0.2 feature.
+7. **Theoretical prefix collision:** a legacy UID that literally begins with an existing source id (`src-xxxxxxxx:`) would be read as source-scoped. Source ids are app-generated random `src-<8 base36>`, so this is astronomically unlikely; the key is preserved (never deleted) either way.
+8. Markdown/XSS surface re-audited for the new kept-event actions: all text goes through `textContent` / `escapeHtml`; no new `innerHTML` sink.
 
 ## 7. Files changed
 
+Final gate:
+- `src/storage.ts` — `resolveKept()` (archive/cancel kept events, current-mark capture), hardened `migrateLegacyMarks()` + `parseScopedEventId(…, knownSourceIds)`
+- `src/rules.ts` — cancelled events visible, never prioritised; overdue/digest exclusions + `[CANCELLED]` annotations
+- `src/main.ts` — kept-event Archive / Mark-cancelled actions, planning-view filters, `.cancelled` card, no countdown for cancelled, live-mark preservation on re-add
+- `src/i18n.ts`, `src/style.css`, `src/types.ts` — new strings, cancelled styling, `resolvedAt`
+- `tests/final.test.ts` (new, 21 tests)
+- `docs/e2e-evidence/e2e-round2-script.cjs` (rewritten: env-configurable, strict, non-zero exit), `docs/e2e-evidence/README.md` (new), refreshed screenshots + `e2e-final-log.json`
+- `package.json` (engines), `.github/workflows/ci.yml`, `.github/workflows/deploy-pages.yml` (Node 22), `CONTRIBUTING.md`, `README.md`, `README.zh-CN.md`
+
+Earlier rounds:
 - `src/main.ts` — source-scoped IDs, import/sync rewrite, vanished UI, honest settings
 - `src/storage.ts` — vanished store, archive, scoped marks, legacy migration, quota guard
 - `src/sync.ts` — uid-first diff pairing
-- `src/ics-parser.ts` — RECURRENCE-ID tz fix, cancelled visibility
+- `src/ics-parser.ts` — RECURRENCE-ID tz fix, cancelled parsing
 - `src/types.ts`, `src/i18n.ts`, `src/style.css`, `index.html` — supporting changes
-- `vite.config.ts` (new), `package.json` (0.1.1), `CHANGELOG.md`, `tests/p0-regression.test.ts` (new), `docs/e2e-evidence/` (new)
+- `vite.config.ts` (new), `package.json` (0.1.1), `CHANGELOG.md`, `tests/p0-regression.test.ts`, `tests/round2.test.ts`, `docs/e2e-evidence/`

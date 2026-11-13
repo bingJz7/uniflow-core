@@ -100,6 +100,8 @@ export interface VanishedEvent {
   resolution?: 'archived' | 'cancelled' | 'restored';
   /** When the student clicked "Keep visible" (kept store entries only). */
   restoredAt?: string;
+  /** When the student ended the kept-visible state (archived / marked cancelled). */
+  resolvedAt?: string;
 }
 
 export interface Settings {
