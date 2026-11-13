@@ -87,6 +87,27 @@ const en: Dict = {
   warnings: 'Warnings',
   close: 'Close',
   confirmedDeadlinesNote: 'Deadlines shown are based on your calendar file, not verified against your LMS.',
+  unconfirmedFlag: '⚠️ Kept visible at your request — this event is no longer in the source calendar feed (source unconfirmed).',
+  emptyImportConfirm: 'This calendar is valid but contains no events. Import it anyway?',
+  emptyReimportConfirm: 'The new version of "{name}" is valid but contains NO events. Your current {n} event(s) will be kept as vanished snapshots awaiting your confirmation — nothing will be deleted. Continue?',
+  emptyReimportDone: 'Imported an empty calendar for "{name}". Your previous events are kept as vanished snapshots in Changes — nothing was deleted.',
+  importEmptyTitle: 'Empty calendar',
+
+  // vanished events (P0-02)
+  vanishedHeading: 'Vanished from your calendar file — needs your confirmation',
+  vanishedNote: 'These events disappeared the last time you imported this calendar. That does not necessarily mean the school cancelled them. Your category and status are preserved. Choose what to do:',
+  vanishedWhen: 'vanished',
+  actMarkCancelled: 'Mark cancelled',
+  actArchive: 'Archive',
+  actKeepVisible: 'Keep visible',
+  archivedNote: '{n} resolved item(s) archived. Nothing was deleted.',
+  // kept-visible management (final gate)
+  keptArchiveConfirm: 'Archive "{summary}"? It will stop appearing in your lists, but stays saved on this device (included in your data export). Nothing is deleted.',
+  keptCancelConfirm: 'Mark "{summary}" as cancelled and archive it? It will stop appearing in your lists, but stays saved on this device (included in your data export). Nothing is deleted.',
+  // cancelled events (final gate)
+  cancelledFlag: '⚠️ The source calendar marked this CANCELLED — shown for your information only, never counted as an overdue task.',
+  // honest-copy guardrails (Phase 3)
+  noAutoSyncNote: 'ℹ️ This version has no automatic sync and cannot send phone notifications. Re-import your updated ICS file to refresh your data — the in-app daily digest is generated on demand.',
 };
 
 const zh: Dict = {
@@ -159,6 +180,25 @@ const zh: Dict = {
   warnings: '提示',
   close: '关闭',
   confirmedDeadlinesNote: '显示的截止时间来自你导入的日历文件，未经学校系统核实。',
+  unconfirmedFlag: '⚠️ 应你的要求保留显示——此事件已不在来源日历中（来源未确认）。',
+  emptyImportConfirm: '这个日历有效但不含任何事件。仍要导入吗？',
+  emptyReimportConfirm: '"{name}" 的新版本有效但不含任何事件。你现有的 {n} 个事件将保留为待确认的"已消失"快照——不会删除任何数据。继续吗？',
+  emptyReimportDone: '"{name}" 已导入为空日历。你之前的所有事件都保留在"变更"页的待确认列表中——没有删除任何数据。',
+  importEmptyTitle: '空日历',
+
+  vanishedHeading: '事件已从你的日历文件中消失——需要你确认',
+  vanishedNote: '以下事件在你上次导入该日历时消失了。这不一定代表学校正式取消。你的分类和状态已保留。请选择处理方式：',
+  vanishedWhen: '消失于',
+  actMarkCancelled: '标记为已取消',
+  actArchive: '归档',
+  actKeepVisible: '继续显示',
+  archivedNote: '已归档 {n} 条已处理记录。没有任何数据被删除。',
+  // kept-visible 管理（最终验收）
+  keptArchiveConfirm: '归档“{summary}”？它将不再出现在列表中，但会保存在本设备上（包含在数据导出中）。不会删除任何数据。',
+  keptCancelConfirm: '把“{summary}”标记为已取消并归档？它将不再出现在列表中，但会保存在本设备上（包含在数据导出中）。不会删除任何数据。',
+  // 已取消事件（最终验收）
+  cancelledFlag: '⚠️ 日历源将此事件标记为已取消（STATUS:CANCELLED）——仅供查看，不会计入逾期任务。',
+  noAutoSyncNote: 'ℹ️ 本版本尚无自动同步，也无法发送手机通知。请重新导入更新后的 ICS 文件来刷新数据；应用内每日摘要按需生成。',
 };
 
 const dicts: Record<Lang, Dict> = { en, 'zh-CN': zh };

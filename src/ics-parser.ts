@@ -79,7 +79,7 @@ function timeToMs(t: ICAL.Time, defaultTz: string): number {
   return t.toUnixTime() * 1000;
 }
 
-function extractVevent(comp: ICAL.Component): RawVevent | null {
+function extractVevent(comp: ICAL.Component, defaultTz: string): RawVevent | null {
   const uidProp = comp.getFirstPropertyValue('uid');
   const start = comp.getFirstPropertyValue('dtstart') as ICAL.Time | null;
   // A VEVENT without DTSTART is invalid per RFC 5545 — skip with a warning upstream.
@@ -90,11 +90,36 @@ function extractVevent(comp: ICAL.Component): RawVevent | null {
   const durationSeconds = durationProp ? (comp.getFirstPropertyValue('duration') as unknown as ICAL.Duration).toSeconds() : undefined;
   const status = (comp.getFirstPropertyValue('status') as string | null)?.toUpperCase();
 
-  const recurrenceId = comp.getFirstPropertyValue('recurrence-id') as ICAL.Time | null;
+  // RECURRENCE-ID (Phase 2 fix): per RFC 5545 the RECURRENCE-ID value must be
+  // interpreted in the same timezone context as the DTSTART it overrides.
+  // Some exporters omit the TZID on RECURRENCE-ID even though DTSTART has one,
+  // and a bare UTC interpretation previously misaligned the override with its
+  // occurrence. Resolution order: RECURRENCE-ID's own TZID > DTSTART's TZID >
+  // user-selected timezone (for floating values).
+  const recIdProp = comp.getFirstProperty('recurrence-id');
+  const recurrenceId = recIdProp?.getFirstValue() as ICAL.Time | undefined;
+  let recurrenceIdMs: number | undefined;
+  if (recurrenceId) {
+    const recTzid = recIdProp?.getParameter('tzid') as string | undefined;
+    const dtTzid = comp.getFirstProperty('dtstart')?.getParameter('tzid') as string | undefined;
+    const tzid = recTzid ?? dtTzid;
+    if (isFloating(recurrenceId) && tzid) {
+      const zone = safeGetTimezone(tzid);
+      if (zone) {
+        const zoned = recurrenceId.clone();
+        zoned.zone = zone;
+        recurrenceIdMs = zoned.toUnixTime() * 1000;
+      } else {
+        recurrenceIdMs = timeToMs(recurrenceId, defaultTz);
+      }
+    } else {
+      recurrenceIdMs = timeToMs(recurrenceId, defaultTz);
+    }
+  }
 
   return {
     uid: String(uidProp ?? ''),
-    recurrenceIdMs: recurrenceId ? timeToMs(recurrenceId, 'UTC') : undefined,
+    recurrenceIdMs,
     start,
     end: end ?? undefined,
     durationSeconds: Number.isFinite(durationSeconds) ? durationSeconds : undefined,
@@ -105,6 +130,15 @@ function extractVevent(comp: ICAL.Component): RawVevent | null {
     cancelled: status === 'CANCELLED',
     comp,
   };
+}
+
+/** Resolve a TZID through the (VTIMEZONE-populated) service; never throws. */
+function safeGetTimezone(tzid: string): InstanceType<typeof ICAL.Timezone> | null {
+  try {
+    return ICAL.TimezoneService.get(tzid) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 function buildInstance(raw: RawVevent, startMs: number, endMs: number, instanceKey: string): CalEvent {
@@ -146,10 +180,17 @@ export function parseICS(icsText: string, defaultTz: string, opts: ParseOptions 
       warnings: [
         `Could not parse this file as an iCalendar (.ics) document: ${(err as Error).message}`,
       ],
+      // Structured flag (BLOCKER 3): lets callers distinguish a genuinely
+      // INVALID file from a syntactically valid EMPTY calendar.
+      unparseable: true,
     };
   }
   if (root.name !== 'vcalendar') {
-    return { events: [], warnings: ['This file does not contain a VCALENDAR component.'] };
+    return {
+      events: [],
+      warnings: ['This file does not contain a VCALENDAR component.'],
+      unparseable: true,
+    };
   }
 
   // Register embedded VTIMEZONEs so named TZIDs resolve correctly.
@@ -179,7 +220,7 @@ export function parseICS(icsText: string, defaultTz: string, opts: ParseOptions 
   for (const vevent of vevents) {
     let raw: RawVevent | null;
     try {
-      raw = extractVevent(vevent);
+      raw = extractVevent(vevent, defaultTz);
     } catch (err) {
       warnings.push(`Skipped one event that could not be read: ${(err as Error).message}`);
       continue;
@@ -259,7 +300,9 @@ export function parseICS(icsText: string, defaultTz: string, opts: ParseOptions 
       let occurrence: ICAL.Time | null | undefined = iterator.next();
       // RecurExpansion.next() returns null when the recurrence is exhausted.
       while (occurrence !== null && occurrence !== undefined) {
-        const occMs = occurrence.toUnixTime() * 1000;
+        // Use the SAME conversion path as RECURRENCE-ID keys (timeToMs) so
+        // floating occurrences (feeds without VTIMEZONE) match their overrides.
+        const occMs = timeToMs(occurrence, defaultTz);
         if (occMs > expandTo) break;
         if (occMs >= expandFrom) {
           const override = overrides.get(occMs);

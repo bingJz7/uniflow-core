@@ -1,0 +1,82 @@
+[
+  {
+    "name": "BLOCKER 1: legacy v0.1.0 mark migrated to source-scoped key",
+    "ok": true,
+    "detail": "{\"category\":\"assignment\",\"status\":\"in_progress\"}"
+  },
+  {
+    "name": "BLOCKER 1: migrated category renders in UI",
+    "ok": true,
+    "detail": "first CS101 row cat=assignment"
+  },
+  {
+    "name": "BLOCKER 3a: invalid ICS refused with clear error",
+    "ok": true,
+    "detail": "\n      \n        \n          Something went wrong\n          Cl"
+  },
+  {
+    "name": "BLOCKER 3a: previous events intact after invalid import",
+    "ok": true,
+    "detail": "48 events"
+  },
+  {
+    "name": "vanished detected before keep-visible",
+    "ok": true,
+    "detail": "1 pending"
+  },
+  {
+    "name": "BLOCKER 2: keep-visible clears pending list",
+    "ok": true,
+    "detail": "pending=0"
+  },
+  {
+    "name": "BLOCKER 2: kept event visible in All with unconfirmed flag",
+    "ok": true,
+    "detail": "1 unconfirmed-flagged"
+  },
+  {
+    "name": "BLOCKER 2: kept event survives refresh with category",
+    "ok": true,
+    "detail": "flags=1, cat=assignment"
+  },
+  {
+    "name": "BLOCKER 2: digest annotates kept event",
+    "ok": true,
+    "detail": "📚 UniFlow Daily Digest — 2026-11-13\n\n⏰ Overdue (2)\n  • CS10"
+  },
+  {
+    "name": "BLOCKER 2: re-added event renders exactly once (no duplicate)",
+    "ok": true,
+    "detail": "2 item(s), 0 flagged"
+  },
+  {
+    "name": "BLOCKER 3b: declining empty re-import keeps all events",
+    "ok": true,
+    "detail": "48 events"
+  },
+  {
+    "name": "BLOCKER 3b: second decline still intact",
+    "ok": true,
+    "detail": "48 events"
+  },
+  {
+    "name": "BLOCKER 3b: accepting empty re-import preserves events as vanished snapshots",
+    "ok": true,
+    "detail": "51 pending/changes"
+  },
+  {
+    "name": "Export JSON downloads and contains sources+marks+vanished",
+    "ok": true,
+    "detail": "sources=2, marks=2, vanished=24"
+  },
+  {
+    "name": "Clear all data: double-confirm → onboarding shown after refresh",
+    "ok": true,
+    "detail": "storage empty=true"
+  },
+  {
+    "name": "no console/page errors in whole session",
+    "ok": true,
+    "detail": ""
+  }
+]

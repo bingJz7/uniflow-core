@@ -31,6 +31,13 @@ export interface CalEvent {
   tzid?: string;
   /** True when the source calendar marked the event cancelled via STATUS:CANCELLED. */
   cancelled: boolean;
+  /**
+   * True when the student chose "Keep visible" for an event that has vanished
+   * from its source feed. The task keeps rendering (All / Overdue / digest)
+   * with an explicit "source unconfirmed" flag until the source re-adds it
+   * or the student resolves it. Never fabricated by the app itself.
+   */
+  unconfirmed?: boolean;
 }
 
 /** Result of parsing one ICS source. */
@@ -40,6 +47,12 @@ export interface ParsedCalendar {
   events: CalEvent[];
   /** Human-readable warnings about anything we could not cleanly parse. */
   warnings: string[];
+  /**
+   * True when the file could not be interpreted as an iCalendar document at
+   * all (corrupt, not a VCALENDAR). Callers must refuse such files outright —
+   * distinct from a VALID calendar that simply contains zero events.
+   */
+  unparseable?: boolean;
 }
 
 export interface CalendarSource {
@@ -65,6 +78,30 @@ export interface SourceChange {
   detail?: string;
   /** ISO timestamp when this change was first detected. */
   detectedAt: string;
+}
+
+/**
+ * An event that disappeared from its source calendar on re-import.
+ * The full snapshot (and the student's marks) are preserved and shown as
+ * "vanished from source — needs your confirmation". Disappearing from a feed
+ * is NOT treated as the school cancelling the assignment, and never silently
+ * deletes the student's data.
+ */
+export interface VanishedEvent {
+  /** Source-scoped event id (see storage.eventId). */
+  id: string;
+  sourceId: string;
+  sourceName: string;
+  event: CalEvent;
+  /** The student's marks at the moment of disappearance. */
+  mark: EventMark;
+  detectedAt: string;
+  /** How the student resolved it: 'archived' = hidden as resolved, 'cancelled' = marked cancelled. */
+  resolution?: 'archived' | 'cancelled' | 'restored';
+  /** When the student clicked "Keep visible" (kept store entries only). */
+  restoredAt?: string;
+  /** When the student ended the kept-visible state (archived / marked cancelled). */
+  resolvedAt?: string;
 }
 
 export interface Settings {

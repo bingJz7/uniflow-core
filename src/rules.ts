@@ -19,7 +19,19 @@ export interface EnrichedEvent {
   priority?: Priority;
 }
 
+/**
+ * Final-gate fix 2 — STATUS:CANCELLED is VISIBLE again.
+ * The previous version filtered cancelled events out of `enrich` entirely,
+ * so the ⚠️ CANCELLED flag in the UI could never render and students had no
+ * way to see that their school had cancelled an event. Now cancelled events
+ * flow through the pipeline, but they are never treated as actionable DDL:
+ * `priorityFor` returns undefined for them and `eventsOverdue` excludes
+ * them, so no overdue/urgent reminder is ever generated for a cancelled
+ * event.
+ */
 export function priorityFor(event: CalEvent, mark: EventMark, settings: Settings, nowMs: number): Priority | undefined {
+  // A cancelled event is information, not a pending task — never urgent.
+  if (event.cancelled) return undefined;
   if (!DEADLINE_CATEGORIES.has(mark.category)) return undefined;
   const diffH = (event.startMs - nowMs) / 3600000;
   if (event.startMs < nowMs) return 'overdue';
@@ -31,7 +43,6 @@ export function priorityFor(event: CalEvent, mark: EventMark, settings: Settings
 
 export function enrich(events: CalEvent[], marks: Record<string, EventMark>, settings: Settings, nowMs: number): EnrichedEvent[] {
   return events
-    .filter((e) => !e.cancelled)
     .map((event) => {
       const mark = marks[event.id] ?? { category: 'other' as const, status: 'not_started' as const };
       return {
@@ -58,12 +69,14 @@ export function eventsUpcoming(enriched: EnrichedEvent[], timezone: string, nowM
 }
 
 export function eventsOverdue(enriched: EnrichedEvent[], nowMs: number): EnrichedEvent[] {
-  return enriched.filter((e) => DEADLINE_CATEGORIES.has(e.category) && e.event.startMs < nowMs && e.status !== 'completed');
+  return enriched.filter(
+    (e) => DEADLINE_CATEGORIES.has(e.category) && !e.event.cancelled && e.event.startMs < nowMs && e.status !== 'completed',
+  );
 }
 
-/** Everything on a specific view, excluding completed items on task views. */
+/** Everything on a specific view, excluding completed items on task views (and cancelled events — not pending DDL). */
 export function pendingOnly(enriched: EnrichedEvent[]): EnrichedEvent[] {
-  return enriched.filter((e) => e.status !== 'completed');
+  return enriched.filter((e) => e.status !== 'completed' && !e.event.cancelled);
 }
 
 // ---------- daily digest (in-app, copyable) ----------
@@ -95,19 +108,19 @@ export function buildDigest(
     lines.push('');
     lines.push(`⏰ 已逾期 (${overdue.length})`);
     if (overdue.length === 0) lines.push('  无');
-    for (const e of overdue.slice(0, 10)) lines.push(`  • ${e.event.summary} — 截止于 ${formatDateTime(settings.timezone, e.event.startMs)}${e.event.allDay ? '（全天）' : ''}`);
+    for (const e of overdue.slice(0, 10)) lines.push(`  • ${e.event.summary} — 截止于 ${formatDateTime(settings.timezone, e.event.startMs)}${e.event.allDay ? '（全天）' : ''}${unconf(e, lang)}`);
 
     const today = eventsToday(enriched, settings.timezone, nowMs);
     lines.push('');
     lines.push(`📌 今天 (${today.length})`);
     if (today.length === 0) lines.push('  今天没有日程，好好休息或提前规划吧。');
-    for (const e of today) lines.push(`  • ${categoryLabel(e.category, lang)} ${e.event.summary} — ${formatDateTime(settings.timezone, e.event.startMs)}${e.event.allDay ? '（全天）' : ''}`);
+    for (const e of today) lines.push(`  • ${categoryLabel(e.category, lang)} ${e.event.summary} — ${formatDateTime(settings.timezone, e.event.startMs)}${e.event.allDay ? '（全天）' : ''}${cancel(e, lang)}${unconf(e, lang)}`);
 
-    const upcoming = eventsUpcoming(enriched, settings.timezone, nowMs, settings.soonDays).filter((e) => DEADLINE_CATEGORIES.has(e.category));
+    const upcoming = eventsUpcoming(enriched, settings.timezone, nowMs, settings.soonDays).filter((e) => DEADLINE_CATEGORIES.has(e.category) && !e.event.cancelled);
     lines.push('');
     lines.push(`🗓️ 未来 ${settings.soonDays} 天的截止事项 (${upcoming.length})`);
     if (upcoming.length === 0) lines.push('  无');
-    for (const e of upcoming.slice(0, 15)) lines.push(`  • ${e.event.summary} — 截止于 ${formatDateTime(settings.timezone, e.event.startMs)}${e.event.allDay ? '（全天）' : ''}`);
+    for (const e of upcoming.slice(0, 15)) lines.push(`  • ${e.event.summary} — 截止于 ${formatDateTime(settings.timezone, e.event.startMs)}${e.event.allDay ? '（全天）' : ''}${unconf(e, lang)}`);
 
     lines.push('');
     lines.push('— 由 UniFlow 规则引擎生成（非 AI，确定性规则）');
@@ -117,19 +130,19 @@ export function buildDigest(
     lines.push('');
     lines.push(`⏰ Overdue (${overdue.length})`);
     if (overdue.length === 0) lines.push('  none');
-    for (const e of overdue.slice(0, 10)) lines.push(`  • ${e.event.summary} — due ${formatDateTime(settings.timezone, e.event.startMs)}${e.event.allDay ? ' (all day)' : ''}`);
+    for (const e of overdue.slice(0, 10)) lines.push(`  • ${e.event.summary} — due ${formatDateTime(settings.timezone, e.event.startMs)}${e.event.allDay ? ' (all day)' : ''}${unconf(e, lang)}`);
 
     const today = eventsToday(enriched, settings.timezone, nowMs);
     lines.push('');
     lines.push(`📌 Today (${today.length})`);
     if (today.length === 0) lines.push('  Nothing scheduled today.');
-    for (const e of today) lines.push(`  • ${categoryLabel(e.category, lang)} ${e.event.summary} — ${formatDateTime(settings.timezone, e.event.startMs)}${e.event.allDay ? ' (all day)' : ''}`);
+    for (const e of today) lines.push(`  • ${categoryLabel(e.category, lang)} ${e.event.summary} — ${formatDateTime(settings.timezone, e.event.startMs)}${e.event.allDay ? ' (all day)' : ''}${cancel(e, lang)}${unconf(e, lang)}`);
 
-    const upcoming = eventsUpcoming(enriched, settings.timezone, nowMs, settings.soonDays).filter((e) => DEADLINE_CATEGORIES.has(e.category));
+    const upcoming = eventsUpcoming(enriched, settings.timezone, nowMs, settings.soonDays).filter((e) => DEADLINE_CATEGORIES.has(e.category) && !e.event.cancelled);
     lines.push('');
     lines.push(`🗓️ Deadlines in the next ${settings.soonDays} days (${upcoming.length})`);
     if (upcoming.length === 0) lines.push('  none');
-    for (const e of upcoming.slice(0, 15)) lines.push(`  • ${e.event.summary} — due ${formatDateTime(settings.timezone, e.event.startMs)}${e.event.allDay ? ' (all day)' : ''}`);
+    for (const e of upcoming.slice(0, 15)) lines.push(`  • ${e.event.summary} — due ${formatDateTime(settings.timezone, e.event.startMs)}${e.event.allDay ? ' (all day)' : ''}${unconf(e, lang)}`);
 
     lines.push('');
     lines.push('— Generated by UniFlow rule engine (deterministic, no AI)');
@@ -142,6 +155,16 @@ function categoryLabel(cat: EventMark['category'], lang: 'en' | 'zh-CN'): string
   const en: Record<string, string> = { assignment: '[Assignment]', quiz: '[Quiz]', exam: '[Exam]', class: '[Class]', other: '' };
   const zh: Record<string, string> = { assignment: '[作业]', quiz: '[测验]', exam: '[考试]', class: '[课程]', other: '' };
   return (lang === 'zh-CN' ? zh : en)[cat] ?? '';
+}
+
+/** Marker appended to digest lines for kept-visible events whose source no longer lists them. */
+function unconf(e: EnrichedEvent, lang: 'en' | 'zh-CN'): string {
+  return e.event.unconfirmed ? (lang === 'zh-CN' ? ' ⚠（来源未确认）' : ' ⚠ (source unconfirmed)') : '';
+}
+
+/** Marker appended to digest lines for events the source calendar marked CANCELLED. */
+function cancel(e: EnrichedEvent, lang: 'en' | 'zh-CN'): string {
+  return e.event.cancelled ? (lang === 'zh-CN' ? ' 🚫［已取消］' : ' 🚫 [CANCELLED]') : '';
 }
 
 function formatDate(tz: string, ms: number): string {

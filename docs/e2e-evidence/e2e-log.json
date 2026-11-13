@@ -1,0 +1,87 @@
+[
+  {
+    "name": "subpath deploy: app loads at /uniflow-core/",
+    "ok": true,
+    "detail": "http://127.0.0.1:8765/uniflow-core/"
+  },
+  {
+    "name": "onboarding visible, no console errors",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "demo calendar imports and dashboard shows events",
+    "ok": true,
+    "detail": "1 items today"
+  },
+  {
+    "name": "category + status persist across reload (localStorage)",
+    "ok": true,
+    "detail": "cat=assignment status=In progress"
+  },
+  {
+    "name": "daily digest generates (copyable, rule-based)",
+    "ok": true,
+    "detail": "📚 UniFlow Daily Digest — 2026-11-11\n\n⏰ Overdue (1)\n  • CS101 Intro to Programmi"
+  },
+  {
+    "name": "second calendar imports as separate source",
+    "ok": true,
+    "detail": "2 sources"
+  },
+  {
+    "name": "P0-01: course A marks survive importing course B",
+    "ok": true,
+    "detail": "cat=assignment"
+  },
+  {
+    "name": "P0-02: vanished event detected on re-import",
+    "ok": true,
+    "detail": "1 pending"
+  },
+  {
+    "name": "P0-02: user category/status preserved on vanished item",
+    "ok": true,
+    "detail": "sample-calendar · Category: Assignment · Status: Not started · vanished 11 Nov, 16:41"
+  },
+  {
+    "name": "P0-02: explicit archive resolves pending item",
+    "ok": true,
+    "detail": "pending=0"
+  },
+  {
+    "name": "digestHour hidden from UI (no scheduler yet)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "no-auto-sync honesty note visible",
+    "ok": true,
+    "detail": "ℹ️ This version has no automatic sync and cannot send phone "
+  },
+  {
+    "name": "desktop layout renders",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "language switch to zh-CN works",
+    "ok": true,
+    "detail": "所有截止时间，一目了然。无 AI。无账号。免费。"
+  },
+  {
+    "name": "export + clear data controls present",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "zero network requests during navigation (privacy promise)",
+    "ok": true,
+    "detail": "0 requests"
+  },
+  {
+    "name": "no console/page errors in whole session",
+    "ok": true,
+    "detail": ""
+  }
+]
