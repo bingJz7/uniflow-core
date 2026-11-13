@@ -2,7 +2,7 @@
 
 All notable changes to UniFlow Core are documented here. Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows [SemVer](https://semver.org/).
 
-## [0.1.1] — Code review remediation (unreleased)
+## [0.1.1] — 2026-11-13 — Code review remediation
 
 ### Fixed
 - **P0-01 Multi-calendar state loss:** task categories/completion status are now scoped per calendar source (`sourceId:eventId`); importing or re-syncing one course can no longer erase another course's marks. `pruneMarks` now considers all imported sources and never removes user state without confirmation.
