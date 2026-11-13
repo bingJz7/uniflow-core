@@ -180,10 +180,17 @@ export function parseICS(icsText: string, defaultTz: string, opts: ParseOptions 
       warnings: [
         `Could not parse this file as an iCalendar (.ics) document: ${(err as Error).message}`,
       ],
+      // Structured flag (BLOCKER 3): lets callers distinguish a genuinely
+      // INVALID file from a syntactically valid EMPTY calendar.
+      unparseable: true,
     };
   }
   if (root.name !== 'vcalendar') {
-    return { events: [], warnings: ['This file does not contain a VCALENDAR component.'] };
+    return {
+      events: [],
+      warnings: ['This file does not contain a VCALENDAR component.'],
+      unparseable: true,
+    };
   }
 
   // Register embedded VTIMEZONEs so named TZIDs resolve correctly.

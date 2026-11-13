@@ -257,3 +257,8 @@ ul.warnlist { padding-left: 20px; color: var(--ink-soft); font-size: 13px; }
   .event-item { padding: 14px 18px; }
   .brand h1 { font-size: 20px; }
 }
+
+.event-flag.unconfirmed {
+  background: #fff7ed;
+  border-left: 3px solid #f97316;
+}

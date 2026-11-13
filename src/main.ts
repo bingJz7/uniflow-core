@@ -9,9 +9,9 @@ import { DEMO_ICS } from './demo.js';
 import { t, type Lang } from './i18n.js';
 import { buildDigest, enrich, eventsOverdue, eventsToday, eventsUpcoming, type EnrichedEvent } from './rules.js';
 import {
-  addVanished, clearAllData, downloadFile, exportAllData, loadArchived, loadChanges, loadMarks,
-  loadSettings, loadSources, loadVanished, migrateLegacyMarks, resolveVanished,
-  saveArchived, saveChanges, saveMarks, saveSettings, saveSources, saveVanished, updateMark,
+  addVanished, clearAllData, downloadFile, exportAllData, loadArchived, loadChanges, loadKept, loadMarks,
+  loadSettings, loadSources, loadVanished, migrateLegacyMarks, removeKept, resolveVanished,
+  saveArchived, saveChanges, saveKept, saveMarks, saveSettings, saveSources, saveVanished, updateMark,
 } from './storage.js';
 import { diffSnapshots } from './sync.js';
 import { countdown, isValidTimeZone } from './timezone.js';
@@ -25,13 +25,17 @@ let marks: Record<string, EventMark> = loadMarks();
 let changes: SourceChange[] = loadChanges();
 let vanished: Record<string, VanishedEvent> = loadVanished();
 let archived: Record<string, VanishedEvent> = loadArchived();
+let kept: Record<string, VanishedEvent> = loadKept();
 
 let activeView = 'today';
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string): T => document.querySelector(sel) as T;
 
 /**
- * All parsed events across sources (demo/file/url).
+ * All parsed events across sources (demo/file/url), plus the student's
+ * "kept visible" events (BLOCKER 2): events they explicitly chose to keep
+ * after the source stopped listing them. Kept entries whose id is live again
+ * are skipped — a re-added event renders once, from its real feed data.
  * P0-03: ids are SOURCE-SCOPED (`sourceId:uid/instance`) so two calendars
  * containing the same UID never overwrite each other's category/status.
  */
@@ -45,17 +49,29 @@ function allEvents() {
       // a broken source must not break the whole app; sync UI shows its state
     }
   }
+  const liveIds = new Set(out.map((e) => e.id));
+  for (const item of Object.values(kept)) {
+    if (!liveIds.has(item.id)) {
+      out.push({ ...item.event, id: item.id, unconfirmed: true });
+    }
+  }
   return out;
 }
 
-/** Per-source live scoped ids (used for migration and pruning). */
-function liveScopedIdsBySource(): Map<string, Set<string>> {
+/**
+ * Per-source live rest-ids (`uid/instanceKey`, NO source prefix) — the exact
+ * key format `migrateLegacyMarks()` matches legacy v0.1.0 ids against.
+ * BLOCKER 1 fix: the previous version handed migration source-prefixed ids,
+ * which no legacy key could ever match, so v0.1.0 marks were silently not
+ * migrated.
+ */
+function liveRestIdsBySource(): Map<string, Set<string>> {
   const map = new Map<string, Set<string>>();
   for (const src of sources) {
     const set = new Set<string>();
     try {
       const parsed = parseICS(src.icsText, settings.timezone);
-      for (const e of parsed.events) set.add(`${src.id}:${e.id}`);
+      for (const e of parsed.events) set.add(e.id);
     } catch {
       // broken source contributes nothing
     }
@@ -68,7 +84,7 @@ function liveScopedIdsBySource(): Map<string, Set<string>> {
 
 function init(): void {
   // P0-03 migration: carry v0.1.0 mark keys into the source-scoped scheme.
-  marks = migrateLegacyMarks(marks, liveScopedIdsBySource());
+  marks = migrateLegacyMarks(marks, liveRestIdsBySource());
   saveMarks(marks);
   bindStaticUI();
   bindImport();
@@ -166,8 +182,12 @@ function renderViews(): void {
 function renderEventLists(): void {
   const nowMs = Date.now();
   const enriched = enrich(allEvents(), marks, settings, nowMs);
-  renderList('#list-today', eventsToday(enriched, settings.timezone, nowMs), nowMs);
-  renderList('#list-upcoming', eventsUpcoming(enriched, settings.timezone, nowMs, settings.soonDays), nowMs);
+  // Kept-visible ("source unconfirmed") events belong in All / Overdue / the
+  // digest — where the student explicitly manages them — but not in the
+  // regular Today / Upcoming planning views.
+  const confirmed = enriched.filter((e) => !e.event.unconfirmed);
+  renderList('#list-today', eventsToday(confirmed, settings.timezone, nowMs), nowMs);
+  renderList('#list-upcoming', eventsUpcoming(confirmed, settings.timezone, nowMs, settings.soonDays), nowMs);
   renderList('#list-all', enriched, nowMs);
   renderList('#list-overdue', eventsOverdue(enriched, nowMs), nowMs);
   renderChanges();
@@ -289,6 +309,12 @@ function renderEventItem(item: EnrichedEvent, nowMs: number): HTMLElement {
     flag.textContent = lang === 'zh-CN' ? '⚠️ 日历源将其标记为已取消（STATUS:CANCELLED）' : '⚠️ The source calendar marked this CANCELLED';
     div.appendChild(flag);
   }
+  if (item.event.unconfirmed) {
+    const flag = document.createElement('div');
+    flag.className = 'event-flag unconfirmed';
+    flag.textContent = t(lang, 'unconfirmedFlag');
+    div.appendChild(flag);
+  }
   return div;
 }
 
@@ -347,8 +373,8 @@ function renderChanges(): void {
       }));
       actions.appendChild(mkBtn(t(settings.language, 'actKeepVisible'), false, () => {
         const res = resolveVanished(vanished, item.id, 'restored');
-        vanished = res.vanished; archived = res.archived;
-        saveVanished(vanished); saveArchived(archived);
+        vanished = res.vanished; archived = res.archived; kept = res.kept;
+        saveVanished(vanished); saveArchived(archived); saveKept(kept);
         renderEventLists();
       }));
       div.appendChild(actions);
@@ -434,9 +460,11 @@ function renderSources(): void {
       marks = dropIds(marks) as Record<string, EventMark>;
       vanished = dropIds(vanished) as Record<string, VanishedEvent>;
       archived = dropIds(archived) as Record<string, VanishedEvent>;
+      kept = dropIds(kept) as Record<string, VanishedEvent>;
       saveMarks(marks);
       saveVanished(vanished);
       saveArchived(archived);
+      saveKept(kept);
       renderAll();
     });
     chip.appendChild(del);
@@ -483,6 +511,14 @@ function importFile(file: File): void {
  * Core import path. Parses locally, detects changes vs the previous import of
  * the same source name (re-import = re-sync), persists everything.
  *
+ * BLOCKER 3 — transaction safety: the import is validate-then-commit.
+ *  1. Parse first; an invalid ICS aborts here and touches NOTHING.
+ *  2. A syntactically valid but EMPTY calendar asks for explicit
+ *     confirmation before it replaces a non-empty source (or creates one).
+ *  3. Only after validation/confirmation does any persisted state change.
+ * A failed import therefore never overwrites the last good snapshot and
+ * never loses the student's marks, statuses, or vanished/kept records.
+ *
  * P0-01: cleanup NEVER touches other calendars' marks — pruning happens only
  * when a source is explicitly removed, and is scoped to that source.
  * P0-02: events that disappeared from the feed are preserved as snapshots
@@ -491,21 +527,35 @@ function importFile(file: File): void {
  */
 function importIcsText(icsText: string, name: string, sourceType: 'file' | 'demo'): void {
   const lang = settings.language;
-  let parsed;
-  try {
-    parsed = parseICS(icsText, settings.timezone);
-  } catch (err) {
-    showError(t(lang, 'importFailed', { msg: (err as Error).message }));
+
+  // 1. Validate first — no state has been touched yet.
+  const parsed = parseICS(icsText, settings.timezone);
+
+  // BLOCKER 3: a genuinely INVALID file (corrupt / not a VCALENDAR) is
+  // refused outright — it is NOT treated as an empty calendar, and the
+  // previously imported source keeps its last good snapshot untouched.
+  if (parsed.unparseable) {
+    showError(`${t(lang, 'importFailed', { msg: parsed.warnings[0] ?? 'not a valid iCalendar file' })}`);
     return;
   }
 
-  // Re-import of an existing source (same name) = sync: diff old vs new.
+  // 2. A valid but EMPTY calendar needs explicit confirmation before it
+  //    replaces a non-empty source (or creates one).
   const existingIdx = sources.findIndex((s) => s.name === name && s.sourceType === sourceType);
+  const isReimport = existingIdx >= 0;
+  if (parsed.events.length === 0) {
+    const ask = isReimport
+      ? t(lang, 'emptyReimportConfirm', { name, n: parseICS(sources[existingIdx!].icsText, settings.timezone).events.length })
+      : t(lang, 'emptyImportConfirm');
+    if (!window.confirm(ask)) return; // student declined — old data stays exactly as it was
+  }
+
+  // 3. Commit — from here on we mutate and persist.
   const nowIso = new Date().toISOString();
   const srcId = existingIdx >= 0 ? sources[existingIdx].id : genId();
   const scope = (e: { id: string }) => `${srcId}:${e.id}`;
 
-  if (existingIdx >= 0) {
+  if (isReimport) {
     const prevScoped = parseICS(sources[existingIdx].icsText, settings.timezone)
       .events.map((e) => ({ ...e, id: scope(e) }));
     const newScoped = parsed.events.map((e) => ({ ...e, id: scope(e) }));
@@ -538,7 +588,8 @@ function importIcsText(icsText: string, name: string, sourceType: 'file' | 'demo
         marksChanged = true;
       }
     }
-    // Re-appeared events (school re-added it): clear their vanished snapshot.
+    // Re-appeared events (school re-added it): clear their vanished snapshot
+    // AND any kept-visible record, so the real feed event renders exactly once.
     for (const addedEv of diff.added) {
       if (vanished[addedEv.id]) {
         const snap = vanished[addedEv.id];
@@ -547,9 +598,13 @@ function importIcsText(icsText: string, name: string, sourceType: 'file' | 'demo
         marks[addedEv.id] = snap.mark;
         marksChanged = true;
       }
+      if (kept[addedEv.id]) {
+        kept = removeKept(kept, addedEv.id);
+      }
     }
     if (marksChanged) saveMarks(marks);
     saveVanished(vanished);
+    saveKept(kept);
 
     sources[existingIdx] = {
       ...sources[existingIdx],
@@ -578,13 +633,19 @@ function importIcsText(icsText: string, name: string, sourceType: 'file' | 'demo
   renderViews();
 
   if (parsed.events.length === 0) {
-    showError(`${t(lang, 'importFailed', { msg: parsed.warnings[0] ?? 'no events found' })}`);
+    // Confirmed-empty import. Everything previously in this source lives on
+    // as vanished snapshots awaiting confirmation — nothing was destroyed.
+    const note = isReimport
+      ? t(lang, 'emptyReimportDone', { name })
+      : `${t(lang, 'importFailed', { msg: parsed.warnings[0] ?? 'no events found' })}`;
+    showModal(t(lang, 'importEmptyTitle'), note);
     return;
   }
   let msg = t(lang, 'importSuccess', { n: parsed.events.length, name });
   if (parsed.warnings.length) msg += '\n\n' + t(lang, 'importWarnings') + '\n• ' + parsed.warnings.join('\n• ');
-  if (Object.keys(vanished).length > 0) {
-    msg += '\n\n' + t(lang, 'vanishedHeading') + ' (' + Object.keys(vanished).length + ') — ' + t(lang, 'changes');
+  const pendingCount = Object.keys(vanished).length + Object.keys(kept).length;
+  if (pendingCount > 0) {
+    msg += '\n\n' + t(lang, 'vanishedHeading') + ' (' + pendingCount + ') — ' + t(lang, 'changes');
   }
   showModal(t(lang, 'importSuccess', { n: parsed.events.length, name }).split('.')[0], msg);
 }
@@ -690,6 +751,9 @@ function bindSettings(): void {
     sources = [];
     marks = {};
     changes = [];
+    vanished = {};
+    archived = {};
+    kept = {};
     renderAll();
     showModal(t(lang, 'cleared'), t(lang, 'cleared'));
   });

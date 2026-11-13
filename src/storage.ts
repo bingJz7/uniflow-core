@@ -19,6 +19,7 @@ const KEY_SETTINGS = 'uniflow.settings.v1';
 const KEY_CHANGES = 'uniflow.changes.v1';
 const KEY_VANISHED = 'uniflow.vanished.v1';
 const KEY_ARCHIVED = 'uniflow.archived.v1';
+const KEY_KEPT = 'uniflow.kept.v1';
 
 /** Build the stable, source-scoped id for an event instance. */
 export function scopedEventId(sourceId: string, uid: string, instanceKey: string): string {
@@ -175,21 +176,47 @@ export function resolveVanished(
   vanished: Record<string, VanishedEvent>,
   id: string,
   resolution: 'archived' | 'cancelled' | 'restored',
-): { vanished: Record<string, VanishedEvent>; archived: Record<string, VanishedEvent> } {
+): { vanished: Record<string, VanishedEvent>; archived: Record<string, VanishedEvent>; kept: Record<string, VanishedEvent> } {
   const item = vanished[id];
-  if (!item) return { vanished, archived: loadArchived() };
+  const kept = loadKept();
+  if (!item) return { vanished, archived: loadArchived(), kept };
   const nextVanished = { ...vanished };
   delete nextVanished[id];
   const archived = loadArchived();
   if (resolution === 'restored') {
-    // Back to the normal lists (will reappear if the source re-adds it); drop the snapshot.
+    // BLOCKER 2 fix: "Keep visible" must actually keep the task visible while
+    // it is still missing from the source. The snapshot moves to the kept
+    // store (with its mark) and keeps rendering in All/Overdue/digest with an
+    // explicit "source unconfirmed" flag — until the source re-adds it or the
+    // student archives it. Nothing is silently dropped.
+    const nextKept = { ...kept, [id]: { ...item, resolution: 'restored' as const, restoredAt: new Date().toISOString() } };
     saveVanished(nextVanished);
-    return { vanished: nextVanished, archived };
+    saveKept(nextKept);
+    return { vanished: nextVanished, archived, kept: nextKept };
   }
   const nextArchived = { ...archived, [id]: { ...item, resolution } };
   saveVanished(nextVanished);
   saveArchived(nextArchived);
-  return { vanished: nextVanished, archived: nextArchived };
+  return { vanished: nextVanished, archived: nextArchived, kept };
+}
+
+/** Remove an entry from the kept store (e.g. the source re-added the event). */
+export function removeKept(kept: Record<string, VanishedEvent>, id: string): Record<string, VanishedEvent> {
+  if (!kept[id]) return kept;
+  const next = { ...kept };
+  delete next[id];
+  saveKept(next);
+  return next;
+}
+
+// ---------- kept events (student chose "keep visible" for a vanished event) ----------
+
+export function loadKept(): Record<string, VanishedEvent> {
+  return readJSON<Record<string, VanishedEvent>>(KEY_KEPT, {});
+}
+
+export function saveKept(kept: Record<string, VanishedEvent>): void {
+  writeJSON(KEY_KEPT, kept);
 }
 
 // ---------- settings ----------
@@ -227,6 +254,7 @@ export function exportAllData(): string {
       changes: loadChanges(),
       vanished: loadVanished(),
       archived: loadArchived(),
+      kept: loadKept(),
     },
     null,
     2,
@@ -235,7 +263,7 @@ export function exportAllData(): string {
 
 /** Remove ALL UniFlow data from this device. Irreversible — the UI must confirm twice. */
 export function clearAllData(): void {
-  for (const key of [KEY_SOURCES, KEY_MARKS, KEY_SETTINGS, KEY_CHANGES, KEY_VANISHED, KEY_ARCHIVED]) {
+  for (const key of [KEY_SOURCES, KEY_MARKS, KEY_SETTINGS, KEY_CHANGES, KEY_VANISHED, KEY_ARCHIVED, KEY_KEPT]) {
     localStorage.removeItem(key);
   }
 }

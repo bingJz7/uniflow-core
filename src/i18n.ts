@@ -87,6 +87,12 @@ const en: Dict = {
   warnings: 'Warnings',
   close: 'Close',
   confirmedDeadlinesNote: 'Deadlines shown are based on your calendar file, not verified against your LMS.',
+  unconfirmedFlag: '⚠️ Kept visible at your request — this event is no longer in the source calendar feed (source unconfirmed).',
+  emptyImportConfirm: 'This calendar is valid but contains no events. Import it anyway?',
+  emptyReimportConfirm: 'The new version of "{name}" is valid but contains NO events. Your current {n} event(s) will be kept as vanished snapshots awaiting your confirmation — nothing will be deleted. Continue?',
+  emptyReimportDone: 'Imported an empty calendar for "{name}". Your previous events are kept as vanished snapshots in Changes — nothing was deleted.',
+  importEmptyTitle: 'Empty calendar',
+
   // vanished events (P0-02)
   vanishedHeading: 'Vanished from your calendar file — needs your confirmation',
   vanishedNote: 'These events disappeared the last time you imported this calendar. That does not necessarily mean the school cancelled them. Your category and status are preserved. Choose what to do:',
@@ -169,6 +175,12 @@ const zh: Dict = {
   warnings: '提示',
   close: '关闭',
   confirmedDeadlinesNote: '显示的截止时间来自你导入的日历文件，未经学校系统核实。',
+  unconfirmedFlag: '⚠️ 应你的要求保留显示——此事件已不在来源日历中（来源未确认）。',
+  emptyImportConfirm: '这个日历有效但不含任何事件。仍要导入吗？',
+  emptyReimportConfirm: '"{name}" 的新版本有效但不含任何事件。你现有的 {n} 个事件将保留为待确认的"已消失"快照——不会删除任何数据。继续吗？',
+  emptyReimportDone: '"{name}" 已导入为空日历。你之前的所有事件都保留在"变更"页的待确认列表中——没有删除任何数据。',
+  importEmptyTitle: '空日历',
+
   vanishedHeading: '事件已从你的日历文件中消失——需要你确认',
   vanishedNote: '以下事件在你上次导入该日历时消失了。这不一定代表学校正式取消。你的分类和状态已保留。请选择处理方式：',
   vanishedWhen: '消失于',

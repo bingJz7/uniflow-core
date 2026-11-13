@@ -14,6 +14,13 @@ All notable changes to UniFlow Core are documented here. Format based on [Keep a
 - Dependency audit clean: vite/vitest/typescript upgraded; `npm audit` reports 0 vulnerabilities.
 - Honest UX: the un-wired `digestHour` setting is hidden; Settings states plainly that this version has no automatic sync or phone notifications.
 
+### Round-2 review fixes (same 0.1.1 release)
+- BLOCKER 1: legacy v0.1.0 mark migration now actually matches (rest-id contract fixed); integration test + E2E prove old categories/status survive the upgrade.
+- BLOCKER 2: "Keep visible" really keeps the task — new kept store; event stays in All/Overdue/digest with a "source unconfirmed" flag, disappears cleanly (no duplicate) if the source re-adds it.
+- BLOCKER 3: imports are transaction-safe — unparseable files are refused outright (structured `unparseable` flag, distinct from valid-but-empty calendars, which now require explicit confirmation); failed imports never overwrite the last good snapshot.
+- BLOCKER 4: recurring instances are matched by longest-common-subsequence on start times; ambiguous diffs refuse to guess and never migrate marks wrongly (EXDATE/insert/delete/move cases unit-tested).
+- 17 new unit tests (71 total) + 16 new real-browser E2E checks (33 total), incl. real Export-JSON verification and Clear-all-data in the browser.
+
 ### Tests
 - 11 new regression tests (54 total, all passing): multi-calendar mark isolation, vanished-event retention and resolution, source-scoped IDs, legacy migration, RECURRENCE-ID tz matching, cross-source duplicate UIDs.
 - 17/17 real-browser E2E checks (Chrome for Testing, mobile + desktop viewports) covering demo import, persistence across reload, multi-calendar isolation, vanished detection/confirmation, digest, export/clear controls, zh-CN/en switching, subpath deployment, zero-network privacy, and a clean console.
