@@ -1,0 +1,57 @@
+[
+  {
+    "name": "live site reachable, HTTP 200",
+    "ok": true,
+    "detail": "status=200"
+  },
+  {
+    "name": "page title correct",
+    "ok": true,
+    "detail": "UniFlow — Study Deadlines Dashboard"
+  },
+  {
+    "name": "onboarding shown on fresh visit",
+    "ok": true,
+    "detail": "onboarding visible"
+  },
+  {
+    "name": "demo import success modal",
+    "ok": true,
+    "detail": " Imported 24 events from \"Riverbend Uni — Semester 2 (DEMO)\" Close Imported 24 e"
+  },
+  {
+    "name": "demo events render in All view",
+    "ok": true,
+    "detail": "24 events"
+  },
+  {
+    "name": "task op persisted to marks store",
+    "ok": true,
+    "detail": "1 mark(s)"
+  },
+  {
+    "name": "events persist across refresh",
+    "ok": true,
+    "detail": "24 == 24"
+  },
+  {
+    "name": "marks persist across refresh",
+    "ok": true,
+    "detail": "1 == 1"
+  },
+  {
+    "name": "edited category survives refresh",
+    "ok": true,
+    "detail": "assignment"
+  },
+  {
+    "name": "language toggle renders",
+    "ok": true,
+    "detail": "app visible"
+  },
+  {
+    "name": "zero console/page/network errors",
+    "ok": true,
+    "detail": "0 errors"
+  }
+]
